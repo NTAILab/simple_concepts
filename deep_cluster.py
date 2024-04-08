@@ -9,18 +9,18 @@ from torch.utils.data import TensorDataset, DataLoader
 class DeepCluster(torch.nn.Module):
     def _get_classifier(self, dim_in: int, n_cls: int) -> torch.nn.Module:
         return torch.nn.Sequential(
-            torch.nn.Linear(dim_in, 8),
-            torch.nn.Tanh(),
-            torch.nn.LayerNorm(8),
-            torch.nn.Linear(8, 8),
-            torch.nn.Tanh(),
+            # torch.nn.Linear(dim_in, 8),
+            # torch.nn.Tanh(),
+            # torch.nn.LayerNorm(8),
             # torch.nn.Linear(8, 8),
             # torch.nn.Tanh(),
-            # torch.nn.Linear(8, 8),
-            # torch.nn.Tanh(),
-            torch.nn.LayerNorm(8),
-            torch.nn.Linear(8, n_cls),
-            torch.nn.Softmax(dim=-1)
+            # # torch.nn.Linear(8, 8),
+            # # torch.nn.Tanh(),
+            # # torch.nn.Linear(8, 8),
+            # # torch.nn.Tanh(),
+            # torch.nn.LayerNorm(8),
+            torch.nn.Linear(dim_in, 1),
+            # torch.nn.Softmax(dim=-1)
         ).to(self.device)
         
     def _get_repr_nn(self, dim_in: int, dim_out: int) -> torch.nn.Module:
@@ -68,7 +68,7 @@ class DeepCluster(torch.nn.Module):
         self.l_r = l_r
         
     def _lazy_init(self, input_dim: int):
-        # self.repr_nn = self._get_repr_nn(input_dim, self.latent_dim)
+        self.repr_nn = self._get_repr_nn(input_dim, self.latent_dim)
         self.optimizer = torch.optim.Adam(
             itertools.chain(
                 self.classifier.parameters(),
@@ -139,7 +139,7 @@ class DeepCluster(torch.nn.Module):
                 y_np = k_means.fit_predict(z_np)
                 y = self.np2torch(y_np, dtype=torch.long)
                 cls_logits = self.classifier(z)
-                # cls_logits = torch.cat((-cls_logits, cls_logits), dim=-1)
+                cls_logits = torch.cat((-cls_logits, cls_logits), dim=-1)
                 loss = self.loss_fn(cls_logits, y)
                 
                 loss.backward()
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     noise = 0.05
     x, y = make_moons(n, noise=noise)
     model = DeepCluster(2, 2, device='cuda')
-    model.pre_fit(x)
+    # model.pre_fit(x)
     model.fit(x)
     y_pred = model.predict(x)
     
