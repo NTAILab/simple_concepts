@@ -82,7 +82,9 @@ class SimpleConcepts():
                     p_irv_cur = np.zeros(self.cls_num) # (r)
                     for k in range(self.cls_num):
                         p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
-                    P_s_p = multinomial_coef(s_cur) * np.prod(np.power(p_irv_cur, s_cur))
+                    p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+                    # P_s_p = multinomial_coef(s_cur) * np.prod(np.power(p_irv_cur, s_cur))
+                    P_s_p = np.prod(np.power(p_irv_cur, s_cur))
                     C_v = self.C_v[j][v]
                     result[i, written] = P_s_p * C_v
                     norm_sum += result[i, written]
