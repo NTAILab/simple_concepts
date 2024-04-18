@@ -10,6 +10,8 @@ from sklearn.model_selection import train_test_split
 from typing import Tuple, List
 from experiment_models import Autoencoder, BottleNeck, vert_patcher, EasyClustering
 from utility import f1_sep_scorer, acc_sep_scorer
+from cls_mnist_exp import window_patcher
+
 
 '''
 0 - the target, y mod 5 == 3
@@ -30,7 +32,7 @@ def get_proc_mnist_np() -> Tuple[np.ndarray, np.ndarray]:
     X_list = []
     y_list = []
     for x, y in ds:
-        X_list.append(x[:, 0, ...])
+        X_list.append(x)
         y_list.append(y)
     X_np = np.concatenate(X_list, axis=0) # (60000, 28, 28)
     std = np.std(X_np, 0, keepdims=True)
@@ -42,19 +44,19 @@ def get_proc_mnist_np() -> Tuple[np.ndarray, np.ndarray]:
     
 
 if __name__=='__main__':
-    cls_num = 16
-    eps = 0.01
+    cls_num = 256
+    eps = 0.001
     ae_kw = {
-        'latent_dim': 32, 
-        'epochs_num': 30, 
-        'batch_num': 128, 
+        'latent_dim': 20, 
+        'epochs_num': 5, 
+        'batch_num': 1024, 
         'l_r': 1e-3, 
         'device': 'cuda'
     }
     X, y = get_proc_mnist_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
-    clusterizer = EasyClustering(cls_num, ae_kw)
-    model = SimpleConcepts(cls_num, clusterizer, vert_patcher, eps)
+    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
+    model = SimpleConcepts(cls_num, clusterizer, window_patcher, eps)
     model.fit(X_train, y_train)
     scores = model.predict(X_test)
     acc = acc_sep_scorer(y_test, scores)

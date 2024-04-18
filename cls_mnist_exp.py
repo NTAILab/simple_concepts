@@ -80,7 +80,7 @@ def cae_exp():
         idx_to_draw = rng.choice(pred_i, 4, replace=False)
         fig, ax = plt.subplots(2, 4)
         for j in range(4):
-            cur_x = X[idx_to_draw[j], None, :]
+            cur_x = X_train[idx_to_draw[j], None, :]
             ax[0, j].imshow(cur_x[0, 0, ...])
             with torch.no_grad():
                 cur_code = model.cls_model.autoencoder.np2torch(latent_x[idx_to_draw[j], None])
@@ -104,18 +104,29 @@ def sliding_window_exp():
     f1 = f1_sep_scorer(y_test, scores)
     print("Accuracy for concepts:", acc)
     print("F1 for concepts:", f1)
+    
+def ae_exp():
+    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
+    model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+    model.fit(X_train, y_train)
+    
+    scores = model.predict(X_test)
+    acc = acc_sep_scorer(y_test, scores)
+    f1 = f1_sep_scorer(y_test, scores)
+    print("Accuracy for concepts:", acc)
+    print("F1 for concepts:", f1)
 
 if __name__=='__main__':
-    cls_num = 10
+    cls_num = 256
     eps = 0.01
     ae_kw = {
-        'latent_dim': 12, 
-        'epochs_num': 8, 
+        'latent_dim': 32, 
+        'epochs_num': 40, 
         'batch_num': 1024, 
         'l_r': 1e-3, 
-        'device': 'cpu'
+        'device': 'cuda'
     }
     X, y = get_proc_mnist_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
     y_test = y_test[:, None]
-    sliding_window_exp()
+    ae_exp()
