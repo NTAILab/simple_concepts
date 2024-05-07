@@ -250,28 +250,28 @@ class BottleNeck(torch.nn.Module):
                 logits = pred
             return logits
         
-    def _get_emb_nn(self):
-        return torch.nn.Sequential(
-            torch.nn.Conv2d(1, 16, (6, 6), stride=2),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (6, 6), stride=2),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 48, (8, 8), stride=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Flatten(),
-        ).to(self.device)
-        
-    # for 28x28
     # def _get_emb_nn(self):
     #     return torch.nn.Sequential(
-    #         torch.nn.Conv2d(1, 16, (3, 3), stride=2),
+    #         torch.nn.Conv2d(1, 16, (6, 6), stride=2),
     #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(16, 32, (3, 3), stride=2),
+    #         torch.nn.Conv2d(16, 32, (6, 6), stride=2),
     #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(32, 32, (3, 3), stride=1),
+    #         torch.nn.Conv2d(32, 48, (8, 8), stride=1),
     #         torch.nn.LeakyReLU(),
     #         torch.nn.Flatten(),
     #     ).to(self.device)
+        
+    # for 28x28
+    def _get_emb_nn(self):
+        return torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, (3, 3), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(16, 32, (3, 3), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 32, (3, 3), stride=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Flatten(),
+        ).to(self.device)
     
     def __init__(self, lmd: float, epochs_num: int, batch_num: int, l_r: float, device: torch.device):
         super().__init__()
@@ -294,7 +294,8 @@ class BottleNeck(torch.nn.Module):
         self.embed_nn = self._get_emb_nn()
         self.con_nn_list = []
         for i, v in enumerate(c_cls_num):
-            con_nn = self.ClsNN(768, v, self.device)
+            # con_nn = self.ClsNN(768, v, self.device)
+            con_nn = self.ClsNN(512, v, self.device)
             self.register_module(f'con_nn_{i}', con_nn)
             self.con_nn_list.append(con_nn)
         self.y_nn = self.ClsNN(np.sum(c_cls_num), y_cls_num, self.device)
@@ -401,8 +402,8 @@ class EasyClustering():
 def vert_patcher(X: np.ndarray) -> np.ndarray:
     half_h = X.shape[-1] // 2
     result = np.zeros((X.shape[0], 2, half_h, X.shape[-1]), dtype=X.dtype)
-    result[:, 0, ...] = X[:, :half_h, :]
-    result[:, 1, ...] = X[:, half_h:, :]
+    result[:, 0, ...] = X[:, 0, :half_h, :]
+    result[:, 1, ...] = X[:, 0, half_h:, :]
     return result
 
 def quarter_patcher(X: np.ndarray) -> np.ndarray:
