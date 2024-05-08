@@ -72,67 +72,9 @@ def base_experiment():
     # print("F1 for concepts:", f1)
     
 def rule_exp():
-    no_patcher = lambda x: x
-    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-    model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
-    model.fit(X_train, y_train)
-    
-    scores = model.predict(X_test)
-    acc = acc_sep_scorer(y_test, scores)
-    f1 = f1_sep_scorer(y_test, scores)
-    print("Accuracy for concepts:", acc)
-    print("F1 for concepts:", f1)
-    
-    x_2_1, x_3_0, x_0_1, x_1_1 = sp.symbols('x_2_1, x_3_0, x_0_1, x_1_1')
-    rule1 = (x_2_1 & x_3_0 & x_1_1) >> x_0_1
-    x_1_1, x_2_0, x_0_0 = sp.symbols('x_1_1, x_2_0, x_0_0')
-    rule2 = (x_1_1 & x_2_0) >> x_0_0
-    # x_2_0, x_2_1, x_3_0, x_3_2, x_0_0, x_0_1 = sp.symbols('x_2_0, x_2_1, x_3_0, x_3_2, x_0_0, x_0_1')
-    # rule3 = Equivalent((x_2_1 & x_3_0) | (x_2_0 & x_0_0 & x_3_2), x_0_1)
-    model.insert_rules(rule1)
-    print('--- Inserted rule ---')
-    scores = model.predict(X_test)
-    acc = acc_sep_scorer(y_test, scores)
-    f1 = f1_sep_scorer(y_test, scores)
-    print("Accuracy for concepts:", acc)
-    print("F1 for concepts:", f1)
-    
-def check_rule_errors(preds, rule):
-    vars = list(rule.free_symbols)
-    default_dict = dict([(str(v), False) for v in vars])
-    Z, Pr_Z = np.unique(preds, return_counts=True, axis=0)
-    errors = 0
-    for cur_z, pr_num in zip(Z, Pr_Z):
-        cur_dict = default_dict.copy()
-        for r in range(cur_z.shape[0]):
-            v = cur_z[r]
-            cur_dict[f'x_{r}_{v}'] = True
-        rule_val = rule.subs(cur_dict)
-        if not rule_val:
-            errors += pr_num
-    return errors
-
-
-def get_rule_checker(model, rule) -> RuleChecker:
-    vars = list(rule.free_symbols)
-    sub_dict = dict()
-    for var in vars:
-        r, v = map(int, str(var).split('_')[-2:])
-        sub_dict[var] = sp.Eq(sp.Symbol(f'y_{r}'), v)
-    rule_list = [rule.subs(sub_dict)]
-    cards = dict()
-    for i, cardinality in enumerate(model.v):
-        cards[f'y_{i}'] = cardinality
-    return RuleChecker(cards, rule_list)
-
-
-def wrong_concepts():
     y_train_fixed = y_train.copy()
-    # wrong_part = 0.5
-    # train_idx = np.arange(y_train.shape[0])
-    # wrong_idx, _ = train_test_split(train_idx, train_size=wrong_part)
-    wrong_idx = np.argwhere(np.logical_and(y_train[:, 1] == 1, y_train[:, 2] == 1)).ravel()
-    wrong_idx, _ = train_test_split(wrong_idx, train_size=0.8)
+    wrong_idx = np.arange(X_train.shape[0])
+    wrong_idx, _ = train_test_split(wrong_idx, train_size=0.5)
     y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
     no_patcher = lambda x: x
     clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
@@ -144,62 +86,160 @@ def wrong_concepts():
     f1 = f1_sep_scorer(y_test, scores)
     print("Accuracy for concepts:", acc)
     print("F1 for concepts:", f1)
-    probas = model.predict_proba(X_test)
-    roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+    probas_before = model.predict_proba(X_test)
+    roc_auc = roc_auc_score(y_test[:, 0], probas_before[:, 1])
     print("ROC-AUC for target:", roc_auc)
-    ap = average_precision_score(y_test[:, 0], probas[:, 1])
+    ap = average_precision_score(y_test[:, 0], probas_before[:, 1])
     print("AP for target:", ap)
     
-    # bin_n = 10
-    # fig, ax = plt.subplots(1, 2)
-    # fig.suptitle('Concept 0 proba density')
-    # proba = model.predict_proba(X_test)
-    # proba_0 = proba[:, 1]
-    # vals, bins = np.histogram(proba_0, bin_n, range=(0, 1), density=True)
-    # ax[0].set_title('Without rule')
-    # ax[0].set_xlabel('proba')
-    # ax[1].set_title('With rule')
-    # ax[1].set_xlabel('proba')
-    # ax[0].hist(bins[:-1], bins, weights=vals)
-    
-    x_2_1, x_3_0, x_0_1, x_1_1 = sp.symbols('x_2_1, x_3_0, x_0_1, x_1_1')
-    rule1 = (x_2_1 & x_3_0 & x_1_1) >> x_0_1
-    x_1_1, x_2_0, x_0_0 = sp.symbols('x_1_1, x_2_0, x_0_0')
-    rule2 = (x_1_1 & x_2_0) >> x_0_0
-    x_3_1, x_1_0, x_3_2 = sp.symbols('x_3_1, x_1_0, x_3_2')
-    rule3 = Equivalent((x_1_1 & x_2_1) | (x_1_0 & x_2_0), x_0_1)
-    rule_eq = Equivalent((x_1_0 & x_2_1) | (x_1_1 & x_2_0), x_0_0)
-    rule_inv = (x_1_1 & x_2_1) >> x_0_1
-    rule_in = rule_inv
+    x_2_1, x_0_1, x_1_1, x_1_1, x_2_0, x_0_0, x_1_0 = sp.symbols('x_2_1, x_0_1, x_1_1, x_1_1, x_2_0, x_0_0, x_1_0')
+    rule_pos = Equivalent((x_1_1 & x_2_1) | (x_1_0 & x_2_0), x_0_1)
+    rule_neg = Equivalent((x_1_0 & x_2_1) | (x_1_1 & x_2_0), x_0_0)
+    rule_in = [rule_pos, rule_neg]
     errors_n = check_rule_errors(scores, rule_in)
     print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
     checker = get_rule_checker(model, rule_in)
-    errors_n = checker.check(probas)
+    errors_n = checker.check(probas_before)
     print(f'Rule errors (probas): {errors_n / scores.shape[0]}')
     
     
-    model.insert_rules(rule_in)
+    rule_model = model.get_model_with_rules(rule_in)
     print('--- Inserted rule ---')
-    scores = model.predict(X_test)
+    scores = rule_model.predict(X_test)
     acc = acc_sep_scorer(y_test, scores)
     f1 = f1_sep_scorer(y_test, scores)
     print("Accuracy for concepts:", acc)
     print("F1 for concepts:", f1)
-    probas = model.predict_proba(X_test)
-    roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+    probas_after = rule_model.predict_proba(X_test)
+    roc_auc = roc_auc_score(y_test[:, 0], probas_after[:, 1])
     print("ROC-AUC for target:", roc_auc)
-    ap = average_precision_score(y_test[:, 0], probas[:, 1])
+    ap = average_precision_score(y_test[:, 0], probas_after[:, 1])
     print("AP for target:", ap)
     errors_n = check_rule_errors(scores, rule_in)
     print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
-    errors_n = checker.check(probas)
+    errors_n = checker.check(probas_after)
     print(f'Rule errors (probas): {errors_n / scores.shape[0]}')
     
-    # proba = model.predict_proba(X_test)
-    # proba_0 = proba[:, 1]
-    # vals, bins = np.histogram(proba_0, bin_n, range=(0, 1), density=True)
-    # ax[1].hist(bins[:-1], bins, weights=vals)
-    # plt.show()
+    bin_n = 12
+    fig, ax = plt.subplots(1, 2)
+    fig.suptitle('Target concept proba density')
+    probas = (probas_before, probas_after)
+    for i in range(2):
+        proba_0 = probas[i][:, 1]
+        vals, bins = np.histogram(proba_0, bin_n, range=(0, 1), density=True)
+        ax[i].hist(bins[:-1], bins, weights=vals)
+    ax[0].set_title('Without rule')
+    ax[0].set_xlabel('proba')
+    ax[1].set_title('With rule')
+    ax[1].set_xlabel('proba')
+    plt.show()
+    
+def check_rule_errors(concepts: np.ndarray, rules: List[sp.Expr]):
+    master_rule = sp.And(*rules)
+    vars = list(master_rule.free_symbols)
+    default_dict = dict([(str(v), False) for v in vars])
+    Z, Pr_Z = np.unique(concepts, return_counts=True, axis=0)
+    errors = 0
+    for cur_z, pr_num in zip(Z, Pr_Z):
+        cur_dict = default_dict.copy()
+        for r in range(cur_z.shape[0]):
+            v = cur_z[r]
+            cur_dict[f'x_{r}_{v}'] = True
+        rule_val = master_rule.subs(cur_dict)
+        if not rule_val:
+            errors += pr_num
+    return errors
+
+
+def get_rule_checker(model, rules) -> RuleChecker:
+    master_rule = sp.And(*rules)
+    vars = list(master_rule.free_symbols)
+    sub_dict = dict()
+    for var in vars:
+        r, v = map(int, str(var).split('_')[-2:])
+        sub_dict[var] = sp.Eq(sp.Symbol(f'y_{r}'), v)
+    rule_list = [master_rule.subs(sub_dict)]
+    cards = dict()
+    for i, cardinality in enumerate(model.v):
+        cards[f'y_{i}'] = cardinality
+    return RuleChecker(cards, rule_list)
+
+
+def wrong_concepts():
+    y_train_fixed = y_train.copy()
+    wrong_part_list = [0.1, 0.25, 0.5, 0.75, 0.9]
+    # wrong_part_list = [0.1, 0.25]
+    f1_all = np.empty((len(wrong_part_list), 2)) # without and with rule
+    acc_all = np.empty((len(wrong_part_list), 2))
+    roc_auc_all = np.empty((len(wrong_part_list), 2))
+    av_prec_all = np.empty((len(wrong_part_list), 2))
+    error_all = np.empty((len(wrong_part_list), 2))
+    for i, w_p in enumerate(wrong_part_list):
+        wrong_idx = np.argwhere(np.logical_and(y_train[:, 1] == 1, y_train[:, 2] == 1)).ravel()
+        wrong_idx, _ = train_test_split(wrong_idx, train_size=w_p)
+        y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
+        no_patcher = lambda x: x
+        clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
+        model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+        model.fit(X_train, y_train_fixed)
+        
+        scores = model.predict(X_test)
+        acc = acc_sep_scorer(y_test, scores)
+        f1 = f1_sep_scorer(y_test, scores)
+        print("Accuracy for concepts:", acc)
+        print("F1 for concepts:", f1)
+        probas = model.predict_proba(X_test)
+        roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+        print("ROC-AUC for target:", roc_auc)
+        ap = average_precision_score(y_test[:, 0], probas[:, 1])
+        print("AP for target:", ap)
+        acc_all[i, 0] = acc[0]
+        f1_all[i, 0] = f1[0]
+        roc_auc_all[i, 0] = roc_auc
+        av_prec_all[i, 0] = ap
+        
+        
+        x_2_1, x_1_1, x_0_1, x_1_1 = sp.symbols('x_2_1, x_1_1, x_0_1, x_1_1')
+        rule_inv = (x_1_1 & x_2_1) >> x_0_1
+        rule_in = [rule_inv]
+        errors_n = check_rule_errors(scores, rule_in)
+        print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
+        checker = get_rule_checker(model, rule_in)
+        errors_n = checker.check(probas)
+        error_all[i, 0] = errors_n / scores.shape[0]
+        print(f'Rule errors (probas): {error_all[i, 0]}')
+        
+        rule_model = model.get_model_with_rules(rule_in)
+        print('--- Inserted rule ---')
+        scores = rule_model.predict(X_test)
+        acc = acc_sep_scorer(y_test, scores)
+        f1 = f1_sep_scorer(y_test, scores)
+        print("Accuracy for concepts:", acc)
+        print("F1 for concepts:", f1)
+        probas = rule_model.predict_proba(X_test)
+        roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+        print("ROC-AUC for target:", roc_auc)
+        ap = average_precision_score(y_test[:, 0], probas[:, 1])
+        print("AP for target:", ap)
+        errors_n = check_rule_errors(scores, rule_in)
+        print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
+        errors_n = checker.check(probas)
+        error_all[i, 1] = errors_n / scores.shape[0]
+        print(f'Rule errors (probas): {error_all[i, 1]}')
+        acc_all[i, 1] = acc[0]
+        f1_all[i, 1] = f1[0]
+        roc_auc_all[i, 1] = roc_auc
+        av_prec_all[i, 1] = ap
+    arrays = [acc_all, f1_all, roc_auc_all, av_prec_all, error_all]
+    names = ['Accuracy', 'F1', 'ROC-AUC', 'Average precision', 'Rule violation rate']
+    for name, metric in zip(names, arrays):
+        fig, ax = plt.subplots(1, 1)
+        fig.suptitle(name)
+        ax.plot(wrong_part_list, metric[:, 0], 'gs--', label='Baseline')
+        ax.plot(wrong_part_list, metric[:, 1], 'rs--', label='Applied the rule')
+        ax.grid()
+        ax.legend()
+    plt.show()
     
 def tiny_sample_exp():
     no_patcher = lambda x: x
@@ -300,7 +340,7 @@ def draw_figures():
     
 
 if __name__=='__main__':
-    cls_num = 64
+    cls_num = 100
     eps = 0.001
     ae_kw = {
         'latent_dim': 16, 
