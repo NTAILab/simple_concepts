@@ -8,7 +8,6 @@ from sklearn.model_selection import train_test_split
 from typing import Tuple
 from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
-from cls_mnist_exp import window_patcher
 import sympy as sp
 from sympy.logic.boolalg import Equivalent
 from time import gmtime, strftime

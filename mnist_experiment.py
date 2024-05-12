@@ -11,7 +11,6 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 from typing import Tuple, List
 from experiment_models import Autoencoder, BottleNeck, vert_patcher, EasyClustering
 from utility import f1_sep_scorer, acc_sep_scorer
-from cls_mnist_exp import window_patcher
 import sympy as sp
 from sympy.logic.boolalg import Equivalent
 from rule_checker import RuleChecker
