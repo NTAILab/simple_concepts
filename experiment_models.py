@@ -5,6 +5,8 @@ from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.mixture import GaussianMixture
+from typing import Optional
+from copy import deepcopy
 
 class Reshape(torch.nn.Module):
     def __init__(self, *args):
@@ -161,7 +163,7 @@ class Autoencoder(torch.nn.Module):
     #         torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
     #     ).to(self.device)
     
-    def __init__(self, latent_dim: int, epochs_num: int, batch_num: int, l_r: float, device: torch.device):
+    def __init__(self, latent_dim: int, epochs_num: int, batch_num: int, l_r: float, device: torch.device, early_stop: Optional[int]=None):
         super().__init__()
         self.latent_dim = latent_dim
         self.epochs_num = epochs_num
@@ -169,6 +171,7 @@ class Autoencoder(torch.nn.Module):
         self.l_r = l_r
         self.device = torch.device(device)
         self.loss_fn = torch.nn.functional.mse_loss#torch.nn.MSELoss()
+        self.early_stop = early_stop
         
     def np2torch(self, arr, device=None):
         if device is None:
@@ -187,6 +190,9 @@ class Autoencoder(torch.nn.Module):
         # print(decode.shape)
         dataset = TensorDataset(X)
         self.train()
+        weights = deepcopy(self.state_dict())
+        best_mse = float('inf')
+        patience = 0
         for e in range(self.epochs_num):
             data_loader = DataLoader(dataset, self.batch_num, True)
             prog_bar = tqdm(
@@ -203,6 +209,19 @@ class Autoencoder(torch.nn.Module):
                 cum_mse += loss.item()
 
                 prog_bar.set_postfix(Loss=cum_mse / (i + 1))
+            if self.early_stop is not None:
+                if cum_mse < best_mse:
+                    weights = deepcopy(self.state_dict())
+                    best_mse = cum_mse
+                    patience = 0
+                else:
+                    patience += 1
+                    if patience >= self.early_stop:
+                        print('Early stopping!')
+                        break
+                print('Patience:', patience)
+        if self.early_stop is not None:
+            self.load_state_dict(weights)
         self.eval()
         return self
     
@@ -272,13 +291,14 @@ class BottleNeck(torch.nn.Module):
             torch.nn.Flatten(),
         ).to(self.device)
     
-    def __init__(self, lmd: float, epochs_num: int, batch_num: int, l_r: float, device: torch.device):
+    def __init__(self, lmd: float, epochs_num: int, batch_num: int, l_r: float, device: torch.device, early_stop: Optional[int]):
         super().__init__()
         self.lmd = lmd
         self.epochs_num = epochs_num
         self.batch_num = batch_num
         self.l_r = l_r
         self.device = torch.device(device)
+        self.early_stop = early_stop
         
     def np2torch(self, arr, dtype=None, device=None):
         if dtype is None:
@@ -312,6 +332,9 @@ class BottleNeck(torch.nn.Module):
         
         dataset = TensorDataset(X, Y, C)
         self.train()
+        weights = deepcopy(self.state_dict())
+        best_ce = float('inf')
+        patience = 0
         for e in range(self.epochs_num):
             data_loader = DataLoader(dataset, self.batch_num, True)
             prog_bar = tqdm(
@@ -337,7 +360,22 @@ class BottleNeck(torch.nn.Module):
                 loss.backward()
                 self.optimizer_.step()
                 loss_kw[f'CE target'] += y_loss.item()
-                prog_bar.set_postfix(dict(zip(loss_kw.keys(), [v / (i + 1) for v in loss_kw.values()])))
+                ce_loss_list = [v / (i + 1) for v in loss_kw.values()]
+                prog_bar.set_postfix(dict(zip(loss_kw.keys(), ce_loss_list)))
+            mean_ce = np.mean(ce_loss_list)
+            if self.early_stop is not None:
+                if mean_ce < best_ce:
+                    weights = deepcopy(self.state_dict())
+                    best_ce = mean_ce
+                    patience = 0
+                else:
+                    patience += 1
+                    if patience >= self.early_stop:
+                        print('Early stopping!')
+                        break
+                print('Patience:', patience)
+        if self.early_stop is not None:
+            self.load_state_dict(weights)
         self.eval()
         return self
     
@@ -369,7 +407,7 @@ class BottleNeck(torch.nn.Module):
 class EasyClustering():
     def __init__(self, cls_num: int, autoencoder):
         self.autoencoder = autoencoder
-        self.clusterizer = GaussianMixture(cls_num, covariance_type='full')
+        self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
         
     def fit(self, X: np.ndarray) -> 'EasyClustering':
         self.autoencoder.fit(X)

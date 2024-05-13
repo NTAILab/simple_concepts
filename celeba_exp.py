@@ -27,6 +27,7 @@ def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     return X_np, y_np
     
 def tiny_sample_exp():
+    date = strftime('%d.%m %H_%M_%S', gmtime())
     no_patcher = lambda X: X[:, None, ...]
     global y_train
     conc_num = y_train.shape[1]
@@ -56,7 +57,7 @@ def tiny_sample_exp():
             
             print('--- Bottleneck ---')
             
-            model = BottleNeck(1, ep_n, 512, 1e-3, 'cuda')
+            model = BottleNeck(1, ep_n, 512, 1e-3, device, 3)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)
@@ -65,18 +66,20 @@ def tiny_sample_exp():
             acc_bottleneck[i, j, :] = acc
             print("Accuracy for concepts:", acc)
             print("F1 for concepts:", f1)
-    date = strftime('%d.%m %H_%M_%S', gmtime())
+            np.savez(f'celeba_metrics {date} BACKUP', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
     np.savez(f'celeba_metrics {date}', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
 
 if __name__=='__main__':
     cls_num = 100
     eps = 0.001
+    device = 'cuda'
     ae_kw = {
         'latent_dim': 64, 
         'epochs_num': 30, 
         'batch_num': 1024, 
         'l_r': 1e-3, 
-        'device': 'cuda'
+        'device': device,
+        'early_stop': 3,
     }
     X, y = get_proc_celeba_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
