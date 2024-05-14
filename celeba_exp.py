@@ -2,14 +2,11 @@ from torchvision.datasets import CelebA
 from torchvision.transforms.v2 import PILToTensor
 from torch.utils.data import DataLoader
 import numpy as np
-import matplotlib.pyplot as plt
 from simple_concepts.model import SimpleConcepts
 from sklearn.model_selection import train_test_split
 from typing import Tuple
 from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
-import sympy as sp
-from sympy.logic.boolalg import Equivalent
 from time import gmtime, strftime
 
 def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
@@ -32,7 +29,7 @@ def tiny_sample_exp():
     global y_train
     conc_num = y_train.shape[1]
     y_train, c_train = y_train[:, 0], y_train[:, 1:]
-    n_list = [10000, 20000, 30000, 40000, 50000]
+    n_list = [5000, 10000, 20000, 30000, 40000]
     epochs_n = [30, 20, 20, 20, 20]
     iter_num = 10
     f1_our = np.zeros((iter_num, len(n_list), conc_num))
@@ -45,7 +42,7 @@ def tiny_sample_exp():
             ae_kw['epochs_num'] = ep_n
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
             clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model = SimpleConcepts(cls_num, clusterizer, quarter_patcher, eps)
+            model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)
@@ -68,6 +65,27 @@ def tiny_sample_exp():
             print("F1 for concepts:", f1)
             np.savez(f'celeba_metrics {date} BACKUP', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
     np.savez(f'celeba_metrics {date}', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
+    
+def draw_figures():
+    import matplotlib.pyplot as plt
+    array_zip = np.load('')
+    n_list = array_zip['n_list']
+    metrics_id = ['acc', 'f1']
+    metrics_names = ['Accuracy', 'F1']
+    for id, name in zip(metrics_id, metrics_names):
+        fig, ax = plt.subplots(1, 1)
+        fig.suptitle(name)
+        sc_metric = np.mean(array_zip[id + '_our'], axis=0)
+        btl_metric = np.mean(array_zip[id + '_btl'], axis=0)
+        ax.fill_between(n_list, sc_metric.min(axis=-1), sc_metric.max(axis=-1), color='red', alpha=.1)
+        ax.plot(n_list, sc_metric.mean(axis=-1), 'rs--', label='Our model')
+        ax.fill_between(n_list, btl_metric.min(axis=-1), btl_metric.max(axis=-1), color='green', alpha=.1)
+        ax.plot(n_list, btl_metric.mean(axis=-1), 'gs--', label='Bottleneck')
+        ax.grid()
+        ax.legend()
+        ax.set_xlabel('train sample size')
+        ax.set_ylabel(name)
+    plt.show()
 
 if __name__=='__main__':
     cls_num = 100

@@ -118,25 +118,25 @@ class Autoencoder(torch.nn.Module):
     # celeba quarters
     def _get_encoder(self):
         return torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, (16, 16), stride=2),
+            torch.nn.Conv2d(3, 16, (32, 24), stride=3),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (16, 16), stride=1),
+            torch.nn.Conv2d(16, 32, (16, 16), stride=2),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 32, (24, 16), stride=1),
+            torch.nn.Conv2d(32, 32, (16, 16), stride=1),
             torch.nn.LeakyReLU(),
             torch.nn.Flatten(),
-            torch.nn.Linear(2016, self.latent_dim),
+            torch.nn.Linear(1152, self.latent_dim),
         ).to(self.device)
         
     def _get_decoder(self):
         return torch.nn.Sequential(
-            torch.nn.Linear(self.latent_dim, 2016),
-            Reshape(-1, 32, 9, 7),
-            torch.nn.ConvTranspose2d(32, 32, (24, 16), stride=1, output_padding=(0, 0)),
+            torch.nn.Linear(self.latent_dim, 1152),
+            Reshape(-1, 32, 9, 4),
+            torch.nn.ConvTranspose2d(32, 32, (16, 16), stride=1, output_padding=(0, 0)),
             torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(1, 1), output_padding=(0, 0)),
+            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(1, 0)),
             torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
+            torch.nn.ConvTranspose2d(16, 3, (32, 24), stride=3, output_padding=(0, 1)),
         ).to(self.device)
     
     # celeba all
