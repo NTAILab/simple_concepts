@@ -5,6 +5,7 @@ from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
 from typing import Optional
 from copy import deepcopy
 
@@ -118,25 +119,25 @@ class Autoencoder(torch.nn.Module):
     # celeba quarters
     def _get_encoder(self):
         return torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, (32, 24), stride=3),
+            torch.nn.Conv2d(3, 16, (16, 16), stride=2),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (16, 16), stride=2),
+            torch.nn.Conv2d(16, 32, (16, 16), stride=1),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 32, (16, 16), stride=1),
+            torch.nn.Conv2d(32, 32, (24, 16), stride=1),
             torch.nn.LeakyReLU(),
             torch.nn.Flatten(),
-            torch.nn.Linear(1152, self.latent_dim),
+            torch.nn.Linear(2016, self.latent_dim),
         ).to(self.device)
         
     def _get_decoder(self):
         return torch.nn.Sequential(
-            torch.nn.Linear(self.latent_dim, 1152),
-            Reshape(-1, 32, 9, 4),
-            torch.nn.ConvTranspose2d(32, 32, (16, 16), stride=1, output_padding=(0, 0)),
+            torch.nn.Linear(self.latent_dim, 2016),
+            Reshape(-1, 32, 9, 7),
+            torch.nn.ConvTranspose2d(32, 32, (24, 16), stride=1, output_padding=(0, 0)),
             torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(1, 0)),
+            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(1, 1), output_padding=(0, 0)),
             torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(16, 3, (32, 24), stride=3, output_padding=(0, 1)),
+            torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
         ).to(self.device)
     
     # celeba all
@@ -156,12 +157,36 @@ class Autoencoder(torch.nn.Module):
     #     return torch.nn.Sequential(
     #         torch.nn.Linear(self.latent_dim, 1152),
     #         Reshape(-1, 32, 9, 4),
-    #         torch.nn.ConvTranspose2d(32, 32, (24, 16), stride=1, output_padding=(0, 0)),
+    #         torch.nn.ConvTranspose2d(32, 32, (16, 16), stride=1, output_padding=(0, 0)),
     #         torch.nn.LeakyReLU(),
-    #         torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(1, 1), output_padding=(0, 0)),
+    #         torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(1, 0)),
     #         torch.nn.LeakyReLU(),
-    #         torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
+    #         torch.nn.ConvTranspose2d(16, 3, (32, 24), stride=3, output_padding=(0, 1)),
     #     ).to(self.device)
+    
+    # 110x90
+    def _get_encoder(self):
+        return torch.nn.Sequential(
+            torch.nn.Conv2d(3, 16, (20, 16), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(16, 32, (16, 16), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 32, (8, 8), stride=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Flatten(),
+            torch.nn.Linear(1440, self.latent_dim),
+        ).to(self.device)
+        
+    def _get_decoder(self):
+        return torch.nn.Sequential(
+            torch.nn.Linear(self.latent_dim, 1440),
+            Reshape(-1, 32, 9, 5),
+            torch.nn.ConvTranspose2d(32, 32, (8, 8), stride=1, output_padding=(0, 0)),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(0, 0)),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(16, 3, (20, 16), stride=2, output_padding=0),
+        ).to(self.device)
     
     def __init__(self, latent_dim: int, epochs_num: int, batch_num: int, l_r: float, device: torch.device, early_stop: Optional[int]=None):
         super().__init__()
@@ -407,7 +432,8 @@ class BottleNeck(torch.nn.Module):
 class EasyClustering():
     def __init__(self, cls_num: int, autoencoder):
         self.autoencoder = autoencoder
-        self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
+        # self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
+        self.clusterizer = KMeans(cls_num)
         
     def fit(self, X: np.ndarray) -> 'EasyClustering':
         self.autoencoder.fit(X)
@@ -435,3 +461,11 @@ def quarter_patcher(X: np.ndarray) -> np.ndarray:
     result[:, 2, ...] = X[..., half_h:, :half_w]
     result[:, 3, ...] = X[..., half_h:, half_w:]
     return result
+
+def window_patcher(X, kernel_size, stride):
+    X_tensor = torch.tensor(X, device='cpu')
+    patches = torch.nn.Unfold(kernel_size, stride=stride)(X_tensor).cpu().numpy()
+    patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
+    patches = patches.transpose((0, 3, 1, 2))
+    patches = patches.reshape(patches.shape[:3] + kernel_size)
+    return patches

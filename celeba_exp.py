@@ -5,9 +5,10 @@ import numpy as np
 from simple_concepts.model import SimpleConcepts
 from sklearn.model_selection import train_test_split
 from typing import Tuple
-from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher
+from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher, window_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
 from time import gmtime, strftime
+from functools import partial
 
 def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     ds = DataLoader(CelebA('CelebA', download=False, transform=PILToTensor()), 60_000, False, num_workers=6)
@@ -25,12 +26,13 @@ def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     
 def tiny_sample_exp():
     date = strftime('%d.%m %H_%M_%S', gmtime())
-    no_patcher = lambda X: X[:, None, ...]
+    # no_patcher = lambda X: X[:, None, ...]
+    patcher = partial(window_patcher, kernel_size=(110, 90), stride=(17, 22))
     global y_train
     conc_num = y_train.shape[1]
     y_train, c_train = y_train[:, 0], y_train[:, 1:]
-    n_list = [5000, 10000, 20000, 30000, 40000]
-    epochs_n = [30, 20, 20, 20, 20]
+    n_list = [1000, 2000, 4000, 6000, 8000, 10000]
+    epochs_n = [40, 40, 30, 30, 20, 20]
     iter_num = 10
     f1_our = np.zeros((iter_num, len(n_list), conc_num))
     f1_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
@@ -42,7 +44,7 @@ def tiny_sample_exp():
             ae_kw['epochs_num'] = ep_n
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
             clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+            model = SimpleConcepts(cls_num, clusterizer, patcher, eps)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)
@@ -68,7 +70,7 @@ def tiny_sample_exp():
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('')
+    array_zip = np.load('celeba_metrics 18.05 00_40_48.npz')
     n_list = array_zip['n_list']
     metrics_id = ['acc', 'f1']
     metrics_names = ['Accuracy', 'F1']
@@ -88,7 +90,7 @@ def draw_figures():
     plt.show()
 
 if __name__=='__main__':
-    cls_num = 100
+    cls_num = 512
     eps = 0.001
     device = 'cuda'
     ae_kw = {
