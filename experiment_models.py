@@ -203,7 +203,7 @@ class Autoencoder(torch.nn.Module):
             device = self.device
         return torch.tensor(arr, dtype=torch.float32, device=device)
         
-    def fit(self, X: np.ndarray):
+    def fit(self, X: np.ndarray, patcher=None):
         if X.ndim == 3:
             X = X[:, None, ...]
         self.encoder_ = self._get_encoder()
@@ -225,6 +225,9 @@ class Autoencoder(torch.nn.Module):
             cum_mse = 0
             for i, (x_b, ) in enumerate(prog_bar):
                 x_b = x_b.to(self.device)
+                if patcher is not None:
+                    x_b = patcher(x_b)
+                    x_b = x_b.flatten(end_dim=1)
                 self.optimizer_.zero_grad()
                 code = self.encoder_(x_b)
                 rec = self.decoder_(code)
@@ -250,7 +253,7 @@ class Autoencoder(torch.nn.Module):
         self.eval()
         return self
     
-    def predict_code(self, X: np.ndarray) -> np.ndarray:
+    def predict_code(self, X: np.ndarray, patcher=None) -> np.ndarray:
         with torch.no_grad():
             if X.ndim == 3:
                 X = X[:, None, ...]
@@ -258,9 +261,12 @@ class Autoencoder(torch.nn.Module):
             code_list = []
             data_loader = DataLoader(TensorDataset(X_t), self.batch_num, False)
             for (X_b, ) in data_loader:
-                code_list.append(self.encoder_(X_b.to(self.device)).to('cpu'))
+                if patcher is not None:
+                    X_b = patcher(X_b.to(self.device))
+                    X_b = X_b.flatten(end_dim=1)
+                code_list.append(self.encoder_(X_b).cpu())
             code = torch.concat(code_list)
-            code = code.cpu().numpy().astype(np.double)
+            code = code.numpy().astype(np.double)
             return code
     
     
@@ -435,14 +441,14 @@ class EasyClustering():
         # self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
         self.clusterizer = KMeans(cls_num)
         
-    def fit(self, X: np.ndarray) -> 'EasyClustering':
-        self.autoencoder.fit(X)
-        latent_x = self.autoencoder.predict_code(X)
+    def fit(self, X: np.ndarray, patcher=None) -> 'EasyClustering':
+        self.autoencoder.fit(X, patcher)
+        latent_x = self.autoencoder.predict_code(X, patcher)
         self.clusterizer.fit(latent_x)
         return self
     
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        latent_x = self.autoencoder.predict_code(X)
+    def predict(self, X: np.ndarray, patcher=None) -> np.ndarray:
+        latent_x = self.autoencoder.predict_code(X, patcher)
         return self.clusterizer.predict(latent_x)
 
 def vert_patcher(X: np.ndarray) -> np.ndarray:
@@ -462,10 +468,19 @@ def quarter_patcher(X: np.ndarray) -> np.ndarray:
     result[:, 3, ...] = X[..., half_h:, half_w:]
     return result
 
-def window_patcher(X, kernel_size, stride):
-    X_tensor = torch.tensor(X, device='cpu')
-    patches = torch.nn.Unfold(kernel_size, stride=stride)(X_tensor).cpu().numpy()
-    patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
-    patches = patches.transpose((0, 3, 1, 2))
-    patches = patches.reshape(patches.shape[:3] + kernel_size)
-    return patches
+def window_patcher(X, kernel_size, stride, device='cpu'):
+    with torch.no_grad():
+        unfold = torch.nn.Unfold(kernel_size, stride=stride)
+        if type(X) is not torch.Tensor:
+            X_tensor = torch.tensor(X, device=device, dtype=torch.float32)
+            patches = unfold(X_tensor).cpu().numpy()
+            patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
+            patches = patches.transpose((0, 3, 1, 2))
+        else:
+            # X_tensor = X # makes copy !!!!
+            patches = unfold(X)
+            patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
+            patches = patches.permute((0, 3, 1, 2))
+        
+        patches = patches.reshape(patches.shape[:3] + kernel_size)
+        return patches

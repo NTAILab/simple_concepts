@@ -23,14 +23,32 @@ def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     X_np = (X_np - np.mean(X_np, 0, keepdims=True)) / std
     y_np = np.concatenate(y_list, axis=0, dtype=np.int32)
     return X_np, y_np
+
+TRAIN_PATH = './train_array.npz'
+TEST_PATH = './test_array.npz'
+def dump_train_test_on_disk(X, y, test_split = 0.4):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split)
+    np.savez(TRAIN_PATH, X=X_train, y=y_train)
+    np.savez(TEST_PATH, X=X_test, y=y_test)
+
+def load_train() -> Tuple[np.ndarray, np.ndarray]:
+    arr = np.load(TRAIN_PATH)
+    return arr['X'], arr['y']
+
+def load_test() -> Tuple[np.ndarray, np.ndarray]:
+    arr = np.load(TEST_PATH)
+    return arr['X'], arr['y']
     
 def tiny_sample_exp():
+    X, y = get_proc_celeba_np()
+    dump_train_test_on_disk(X, y)
+    conc_num = y.shape[1]
+    del X
+    del y
+        
     date = strftime('%d.%m %H_%M_%S', gmtime())
     # no_patcher = lambda X: X[:, None, ...]
     patcher = partial(window_patcher, kernel_size=(110, 90), stride=(17, 22))
-    global y_train
-    conc_num = y_train.shape[1]
-    y_train, c_train = y_train[:, 0], y_train[:, 1:]
     n_list = [1000, 2000, 4000, 6000, 8000, 10000]
     epochs_n = [40, 40, 30, 30, 20, 20]
     iter_num = 10
@@ -42,30 +60,38 @@ def tiny_sample_exp():
         for j, n in enumerate(n_list):
             ep_n = epochs_n[j]
             ae_kw['epochs_num'] = ep_n
+            X_train, y_train = load_train()
+            y_train, c_train = y_train[:, 0], y_train[:, 1:]
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
+            del X_train
+            del y_train
+            del c_train
             clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
             model = SimpleConcepts(cls_num, clusterizer, patcher, eps)
             model.fit(X_small_train, y_small_train, c_small_train)
-            scores = model.predict(X_test)
-            acc = acc_sep_scorer(y_test, scores)
-            f1 = f1_sep_scorer(y_test, scores)
-            print("Accuracy for concepts:", acc)
-            print("F1 for concepts:", f1)
-            f1_our[i, j, :] = f1
-            acc_our[i, j, :] = acc
             
             print('--- Bottleneck ---')
-            
             model = BottleNeck(1, ep_n, 512, 1e-3, device, 3)
             model.fit(X_small_train, y_small_train, c_small_train)
-            scores = model.predict(X_test)
-            acc = acc_sep_scorer(y_test, scores)
-            f1 = f1_sep_scorer(y_test, scores)
-            f1_bottleneck[i, j, :] = f1
-            acc_bottleneck[i, j, :] = acc
-            print("Accuracy for concepts:", acc)
-            print("F1 for concepts:", f1)
+            
+            X_test, y_test = load_test()
+            scores_sc = model.predict(X_test)
+            acc_sc = acc_sep_scorer(y_test, scores_sc)
+            f1_sc = f1_sep_scorer(y_test, scores_sc)
+            print("Accuracy for concepts SC:", acc_sc)
+            print("F1 for concepts SC:", f1_sc)
+            f1_our[i, j, :] = f1_sc
+            acc_our[i, j, :] = acc_sc
+            scores_btl = model.predict(X_test)
+            acc_btl = acc_sep_scorer(y_test, scores_btl)
+            f1_btl = f1_sep_scorer(y_test, scores_btl)
+            f1_bottleneck[i, j, :] = f1_btl
+            acc_bottleneck[i, j, :] = acc_btl
+            print("Accuracy for concepts BTL:", acc_btl)
+            print("F1 for concepts BTL:", f1_btl)
             np.savez(f'celeba_metrics {date} BACKUP', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
+            del X_test
+            del y_test
     np.savez(f'celeba_metrics {date}', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
     
 def draw_figures():
@@ -94,14 +120,12 @@ if __name__=='__main__':
     eps = 0.001
     device = 'cuda'
     ae_kw = {
-        'latent_dim': 64, 
+        'latent_dim': 48, 
         'epochs_num': 30, 
-        'batch_num': 1024, 
+        'batch_num': 100, 
         'l_r': 1e-3, 
         'device': device,
         'early_stop': 3,
     }
-    X, y = get_proc_celeba_np()
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
     tiny_sample_exp()
     # draw_figures()

@@ -81,9 +81,9 @@ class SimpleConcepts():
     # if only y is provided, then y[0] is target, other components are concepts
     def fit(self, X: np.ndarray, y: np.ndarray, c: Optional[np.ndarray]=None):
         assert c is None or c.ndim == 2
-        patches = self.patcher(X)
-        p_ravel = np.reshape(patches, (-1, ) + patches.shape[2:])
-        self.cls_model.fit(p_ravel)
+        # patches = self.patcher(X)
+        # p_ravel = np.reshape(patches, (-1, ) + patches.shape[2:])
+        self.cls_model.fit(X, self.patcher)
         if y.ndim == 1:
             y = y[:, None]
         if c is not None:
@@ -91,7 +91,8 @@ class SimpleConcepts():
         else:
             C = y
         self.c = C
-        self.cls_labels = self.cls_model.predict(p_ravel).reshape((patches.shape[0], patches.shape[1]))
+        p = self.patcher(X[None, 0])
+        self.cls_labels = self.cls_model.predict(X, self.patcher).reshape((X.shape[0], p.shape[1]))
         self._count_statistics(self.c, self.cls_labels)
         self.is_fit = True
         return self
