@@ -91,18 +91,16 @@ class SimpleConcepts():
         else:
             C = y
         self.c = C
-        p = self.patcher(X[None, 0])
-        self.cls_labels = self.cls_model.predict(X, self.patcher).reshape((X.shape[0], p.shape[1]))
+        self.patches_n = self.patcher(X[None, 0]).shape[1]
+        self.cls_labels = self.cls_model.predict(X, self.patcher).reshape((X.shape[0], self.patches_n))
         self._count_statistics(self.c, self.cls_labels)
         self.is_fit = True
         return self
                     
         
     def predict_proba(self, x: np.ndarray) -> np.ndarray:
-        patches = self.patcher(x)
-        p_ravel = np.reshape(patches, (-1, ) + patches.shape[2:])
-        cls_pred = self.cls_model.predict(p_ravel).reshape((patches.shape[0], patches.shape[1]))
-        s = np.zeros((patches.shape[0], self.cls_num), dtype=int)
+        cls_pred = self.cls_model.predict(x, self.patcher).reshape((x.shape[0], self.patches_n))
+        s = np.zeros((x.shape[0], self.cls_num), dtype=int)
         for i in range(self.cls_num):
             s[:, i] = np.count_nonzero(cls_pred == i, axis=1)
         res_shape = np.sum(self.v)

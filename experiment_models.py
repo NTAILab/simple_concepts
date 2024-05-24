@@ -204,7 +204,7 @@ class Autoencoder(torch.nn.Module):
         return torch.tensor(arr, dtype=torch.float32, device=device)
         
     def fit(self, X: np.ndarray, patcher=None):
-        if X.ndim == 3:
+        if X.ndim == 3 and patcher is None:
             X = X[:, None, ...]
         self.encoder_ = self._get_encoder()
         self.decoder_ = self._get_decoder()
@@ -255,7 +255,7 @@ class Autoencoder(torch.nn.Module):
     
     def predict_code(self, X: np.ndarray, patcher=None) -> np.ndarray:
         with torch.no_grad():
-            if X.ndim == 3:
+            if X.ndim == 3 and patcher is None:
                 X = X[:, None, ...]
             X_t = self.np2torch(X, device='cpu')
             code_list = []
