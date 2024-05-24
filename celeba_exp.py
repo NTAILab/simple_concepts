@@ -67,22 +67,22 @@ def tiny_sample_exp():
             del y_train
             del c_train
             clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model = SimpleConcepts(cls_num, clusterizer, patcher, eps)
-            model.fit(X_small_train, y_small_train, c_small_train)
+            model_sc = SimpleConcepts(cls_num, clusterizer, patcher, eps)
+            model_sc.fit(X_small_train, y_small_train, c_small_train)
             
             print('--- Bottleneck ---')
-            model = BottleNeck(1, ep_n, 512, 1e-3, device, 3)
-            model.fit(X_small_train, y_small_train, c_small_train)
+            model_btl = BottleNeck(1, ep_n, 512, 1e-3, device, 3)
+            model_btl.fit(X_small_train, y_small_train, c_small_train)
             
             X_test, y_test = load_test()
-            scores_sc = model.predict(X_test)
+            scores_sc = model_sc.predict(X_test)
             acc_sc = acc_sep_scorer(y_test, scores_sc)
             f1_sc = f1_sep_scorer(y_test, scores_sc)
             print("Accuracy for concepts SC:", acc_sc)
             print("F1 for concepts SC:", f1_sc)
             f1_our[i, j, :] = f1_sc
             acc_our[i, j, :] = acc_sc
-            scores_btl = model.predict(X_test)
+            scores_btl = model_btl.predict(X_test)
             acc_btl = acc_sep_scorer(y_test, scores_btl)
             f1_btl = f1_sep_scorer(y_test, scores_btl)
             f1_bottleneck[i, j, :] = f1_btl
@@ -96,7 +96,7 @@ def tiny_sample_exp():
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('celeba_metrics 18.05 00_40_48.npz')
+    array_zip = np.load('celeba_metrics 23.05 14_21_37.npz')
     n_list = array_zip['n_list']
     metrics_id = ['acc', 'f1']
     metrics_names = ['Accuracy', 'F1']
@@ -127,5 +127,5 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
-    tiny_sample_exp()
-    # draw_figures()
+    # tiny_sample_exp()
+    draw_figures()
