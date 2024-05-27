@@ -46,6 +46,7 @@ class SimpleConcepts():
         new_model._count_statistics(filtered_c, filtered_cls_lbl)
         new_model.c = filtered_c
         new_model.cls_labels = filtered_cls_lbl
+        new_model.patches_n = self.patches_n
         new_model.is_fit = True
         return new_model
         
@@ -73,16 +74,16 @@ class SimpleConcepts():
             for r in range(concepts.shape[1]):
                 self.p_irv[-1].append([])
                 for v in range(self.v[r]):
-                    c_r_v_mask = np.tile((concepts[:, r] == v)[:, None], (1, patches_n))
-                    stat = np.count_nonzero(np.logical_and(c_r_v_mask, cluster_mask)) / np.count_nonzero(c_r_v_mask)
+                    cur_mask = concepts[:, r] == v
+                    denom = patches_n * np.count_nonzero(cur_mask)
+                    c_r_v_mask = np.tile(cur_mask[:, None], (1, patches_n))
+                    stat = np.count_nonzero(np.logical_and(c_r_v_mask, cluster_mask)) / denom
                     self.p_irv[-1][-1].append(stat)
     
     # X - images, y - target, c - concepts
     # if only y is provided, then y[0] is target, other components are concepts
     def fit(self, X: np.ndarray, y: np.ndarray, c: Optional[np.ndarray]=None):
         assert c is None or c.ndim == 2
-        # patches = self.patcher(X)
-        # p_ravel = np.reshape(patches, (-1, ) + patches.shape[2:])
         self.cls_model.fit(X, self.patcher)
         if y.ndim == 1:
             y = y[:, None]
@@ -97,30 +98,28 @@ class SimpleConcepts():
         self.is_fit = True
         return self
                     
-        
     def predict_proba(self, x: np.ndarray) -> np.ndarray:
         cls_pred = self.cls_model.predict(x, self.patcher).reshape((x.shape[0], self.patches_n))
         s = np.zeros((x.shape[0], self.cls_num), dtype=int)
-        for i in range(self.cls_num):
-            s[:, i] = np.count_nonzero(cls_pred == i, axis=1)
+        cls_idx, cls_stats = np.unique(cls_pred, return_counts=True, axis=1)
+        s[:, cls_idx] = cls_stats
         res_shape = np.sum(self.v)
         result = np.zeros((x.shape[0], res_shape))
-        for i in range(x.shape[0]):
-            s_cur = s[i] # (p_n)
-            written = 0
-            for j in range(self.c.shape[-1]):
-                norm_sum = 0
-                for v in range(self.v[j]):
-                    p_irv_cur = np.zeros(self.cls_num) # (r)
-                    for k in range(self.cls_num):
-                        p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
-                    p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
-                    P_s_p = np.prod(np.power(p_irv_cur, s_cur))
-                    C_v = self.C_v[j][v]
-                    result[i, written] = P_s_p * C_v
-                    norm_sum += result[i, written]
-                    written += 1
-                result[i, written - v - 1: written] /= norm_sum
+        written = 0
+        for j in range(self.c.shape[-1]):
+            norm_sum = 0
+            for v in range(self.v[j]):
+                p_irv_cur = np.zeros(self.cls_num) # (r)
+                for k in range(self.cls_num):
+                    p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
+                p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+                C_v = self.C_v[j][v]
+                P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
+                cur_sub_res = P_s_p * C_v
+                result[:, written] = cur_sub_res
+                norm_sum += cur_sub_res
+                written += 1
+            result[:, written - v - 1: written] /= norm_sum
         return result
     
     def predict(self, x: np.ndarray) -> np.ndarray:
@@ -133,7 +132,43 @@ class SimpleConcepts():
             result[:, i] = cur_proba.argmax(axis=1)
             cumul_sum += outcomes
         return result
-
+    
+    def predict_tgt_lbl_conc_proba(self, x: np.ndarray) -> np.ndarray:
+        cls_pred = self.cls_model.predict(x, self.patcher).reshape((x.shape[0], self.patches_n))
+        s = np.zeros((x.shape[0], self.cls_num), dtype=int)
+        cls_idx, cls_stats = np.unique(cls_pred, return_counts=True, axis=1)
+        s[:, cls_idx] = cls_stats
+        res_shape = np.sum(self.v[1:])
+        conc_result = np.zeros((x.shape[0], res_shape))
+        written = 0
+        for j in range(1, self.c.shape[-1]):
+            norm_sum = 0
+            for v in range(self.v[j]):
+                p_irv_cur = np.zeros(self.cls_num) # (r)
+                for k in range(self.cls_num):
+                    p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
+                p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+                C_v = self.C_v[j][v]
+                P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
+                cur_sub_res = P_s_p * C_v
+                conc_result[:, written] = cur_sub_res
+                norm_sum += cur_sub_res
+                written += 1
+            conc_result[:, written - v - 1: written] /= norm_sum
+        lbl_res = np.zeros(x.shape[0], dtype=int)
+        max_proba = np.zeros(x.shape[0])
+        for v in range(self.v[0]):
+            p_irv_cur = np.zeros(self.cls_num) # (r)
+            for k in range(self.cls_num):
+                p_irv_cur[k] = max(self.p_irv[k][0][v], self.eps)
+            p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+            C_v = self.C_v[0][v]
+            P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
+            cur_sub_res = P_s_p * C_v
+            mask = cur_sub_res > max_proba
+            max_proba[mask] = cur_sub_res[mask]
+            lbl_res[mask] = v
+        return lbl_res, conc_result
 
 if __name__=='__main__':
     x_train = np.asarray(
@@ -203,13 +238,12 @@ if __name__=='__main__':
     )
     
     class TestClusterizer():
-        def fit(self, X):
+        def fit(self, X, patcher):
             pass
         
-        def predict(self, X):
-            assert X.shape[-1] == 1 or X.ndim == 1
-            result = np.zeros(X.shape[0], dtype=int)
-            x = X.ravel()
+        def predict(self, X, patcher):
+            x = patcher(X).ravel()
+            result = np.zeros(x.shape[0], dtype=int)
             result[x == 0] = 0
             result[np.logical_or(x == 3, x == 4)] = 1
             result[np.logical_or(x == 1, x == 2)] = 2
@@ -220,6 +254,9 @@ if __name__=='__main__':
     concept_model = SimpleConcepts(3, cls_model, patch_lambda, 0.01).fit(x_train, y_train, c_train)
     test_predict = concept_model.predict_proba(x_test)
     print('Test concepts:', test_predict)
+    c0_l, c_all_p = concept_model.predict_tgt_lbl_conc_proba(x_test)
+    print('C0 label:', c0_l)
+    print('concepts proba:', c_all_p)
     x_1_1, x_0_0 = sp.symbols('x_1_1, x_0_0')
     rule = x_1_1 >> x_0_0
     concept_model = concept_model.get_model_with_rules([rule])

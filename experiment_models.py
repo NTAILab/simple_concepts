@@ -339,8 +339,8 @@ class BottleNeck(torch.nn.Module):
         return torch.tensor(arr, dtype=dtype, device=device)
         
     def fit(self, X: np.ndarray, y: np.ndarray, c: np.ndarray):
-        assert y.min() == 0
-        assert np.all(c.min(axis=0) == 0)
+        # assert y.min() == 0
+        # assert np.all(c.min(axis=0) == 0)
         y_cls_num = y.max() + 1
         c_cls_num = np.max(c, axis=0) + 1
         self.embed_nn = self._get_emb_nn()
@@ -410,6 +410,31 @@ class BottleNeck(torch.nn.Module):
         self.eval()
         return self
     
+    def predict_conc_proba(self, X: np.ndarray) -> np.ndarray:
+        with torch.no_grad():
+            if X.ndim == 3:
+                X = X[:, None, ...]
+            X_t = self.np2torch(X, device='cpu')
+            embed_list = []
+            data_loader = DataLoader(TensorDataset(X_t), self.batch_num, False)
+            for (X_b, ) in data_loader:
+                embed_list.append(self.embed_nn(X_b.to(self.device)))
+            embedding = torch.concat(embed_list)
+            c_proba_list = []
+            for c_nn in self.con_nn_list:
+                cur_c_logits = c_nn(embedding)
+                cur_proba = torch.softmax(cur_c_logits, 1)
+                c_proba_list.append(cur_proba)
+            c_proba = torch.concat(c_proba_list, dim=1)
+            return c_proba.cpu().numpy()
+        
+    def predict_tgt_lbl_conc_proba(self, X: np.ndarray) -> np.ndarray:
+        conc_proba_cpu = self.predict_conc_proba(X)
+        conc_proba = self.np2torch(conc_proba_cpu)
+        y_logits = self.y_nn(conc_proba)
+        y_label = torch.argmax(y_logits, dim=1)
+        return y_label.cpu().numpy(), conc_proba_cpu
+        
     def predict(self, X: np.ndarray) -> np.ndarray:
         with torch.no_grad():
             if X.ndim == 3:

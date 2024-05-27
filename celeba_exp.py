@@ -1,9 +1,12 @@
 from torchvision.datasets import CelebA
 from torchvision.transforms.v2 import PILToTensor
 from torch.utils.data import DataLoader
+from torch import concat
 import numpy as np
 from simple_concepts.model import SimpleConcepts
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score
 from typing import Tuple
 from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher, window_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
@@ -16,10 +19,10 @@ def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     y_list = []
     for x, y in ds:
         X_list.append(x)
-        y_list.append(y)
+        y_list.append(concat((y[0][:, None], y[1]), dim=1))
     X_np = np.concatenate(X_list, axis=0, dtype=np.float32) # (162770, 3, 218, 178)
     std = np.std(X_np, 0, keepdims=True) 
-    std[std < 1e-15] = 1.0
+    std[std < 1e-6] = 1.0
     X_np = (X_np - np.mean(X_np, 0, keepdims=True)) / std
     y_np = np.concatenate(y_list, axis=0, dtype=np.int32)
     return X_np, y_np
@@ -40,12 +43,12 @@ def load_test() -> Tuple[np.ndarray, np.ndarray]:
     return arr['X'], arr['y']
     
 def tiny_sample_exp():
-    X, y = get_proc_celeba_np()
-    dump_train_test_on_disk(X, y)
-    conc_num = y.shape[1]
-    del X
-    del y
-        
+    X_train, y_train = load_train()
+    y_train, c_train = y_train[:, 0], y_train[:, 1:]
+    conc_num = c_train.shape[1]
+    X_test, y_test = load_test()
+    y_test, c_test = y_test[:, 0], y_test[:, 1:]
+    
     date = strftime('%d.%m %H_%M_%S', gmtime())
     # no_patcher = lambda X: X[:, None, ...]
     patcher = partial(window_patcher, kernel_size=(110, 90), stride=(17, 22))
@@ -56,16 +59,23 @@ def tiny_sample_exp():
     f1_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
     acc_our = np.zeros((iter_num, len(n_list), conc_num))
     acc_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
+    roc_our = np.zeros((iter_num, len(n_list), conc_num))
+    roc_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
+    ap_our = np.zeros((iter_num, len(n_list), conc_num))
+    ap_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
+    acc_tgt = np.zeros((iter_num, len(n_list), 2)) # ours, btl
     for i in range(iter_num):
         for j, n in enumerate(n_list):
             ep_n = epochs_n[j]
             ae_kw['epochs_num'] = ep_n
-            X_train, y_train = load_train()
-            y_train, c_train = y_train[:, 0], y_train[:, 1:]
+            # X_train, y_train = load_train()
+            # y_train, c_train = y_train[:, 0], y_train[:, 1:]
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
-            del X_train
-            del y_train
-            del c_train
+            # del X_train
+            # del y_train
+            # del c_train
+            encoder = OrdinalEncoder(dtype=int)
+            y_small_train = encoder.fit_transform(y_small_train[:, None]).ravel()
             clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
             model_sc = SimpleConcepts(cls_num, clusterizer, patcher, eps)
             model_sc.fit(X_small_train, y_small_train, c_small_train)
@@ -74,29 +84,50 @@ def tiny_sample_exp():
             model_btl = BottleNeck(1, ep_n, 512, 1e-3, device, 3)
             model_btl.fit(X_small_train, y_small_train, c_small_train)
             
-            X_test, y_test = load_test()
-            scores_sc = model_sc.predict(X_test)
-            acc_sc = acc_sep_scorer(y_test, scores_sc)
-            f1_sc = f1_sep_scorer(y_test, scores_sc)
-            print("Accuracy for concepts SC:", acc_sc)
-            print("F1 for concepts SC:", f1_sc)
+            # X_test, y_test = load_test()
+            tgt_sc, proba_sc = model_sc.predict_tgt_lbl_conc_proba(X_test)
+            proba_lbl = np.stack((proba_sc[:, 0::2], proba_sc[:, 1::2]), axis=-1).argmax(axis=-1)
+            proba_sc = proba_sc[:, 1::2]
+            tgt_sc = encoder.inverse_transform(tgt_sc[:, None]).ravel()
+            acc_sc = acc_sep_scorer(c_test, proba_lbl)
+            f1_sc = f1_sep_scorer(c_test, proba_lbl)
+            # roc_sc = roc_auc_score(c_test, proba_sc)
+            # ap_sc = average_precision_score(c_test, proba_sc)
             f1_our[i, j, :] = f1_sc
             acc_our[i, j, :] = acc_sc
-            scores_btl = model_btl.predict(X_test)
-            acc_btl = acc_sep_scorer(y_test, scores_btl)
-            f1_btl = f1_sep_scorer(y_test, scores_btl)
+            for k in range(conc_num):
+                roc_our[i, j, k] = roc_auc_score(c_test[:, k], proba_sc[:, k])
+                ap_our[i, j, k] = average_precision_score(c_test[:, k], proba_sc[:, k])
+            acc_tgt[i, j, 0] = accuracy_score(y_test, tgt_sc)
+            print("Accuracy for concepts SC:", acc_sc)
+            print("F1 for concepts SC:", f1_sc)
+            tgt_btl, proba_btl = model_btl.predict_conc_proba(X_test)
+            proba_lbl = np.stack((proba_btl[:, 0::2], proba_btl[:, 1::2]), axis=-1).argmax(axis=-1)
+            proba_btl = proba_btl[:, 1::2]
+            tgt_btl = encoder.inverse_transform(tgt_btl[:, None]).ravel()
+            acc_btl = acc_sep_scorer(y_test, proba_lbl)
+            f1_btl = f1_sep_scorer(y_test, proba_lbl)
+            for k in range(conc_num):
+                roc_bottleneck[i, j, k] = roc_auc_score(c_test[:, k], proba_btl[:, k])
+                ap_bottleneck[i, j, k] = average_precision_score(c_test[:, k], proba_btl[:, k])
+            acc_tgt[i, j, 1] = accuracy_score(y_test, tgt_btl)
             f1_bottleneck[i, j, :] = f1_btl
             acc_bottleneck[i, j, :] = acc_btl
             print("Accuracy for concepts BTL:", acc_btl)
             print("F1 for concepts BTL:", f1_btl)
-            np.savez(f'celeba_metrics {date} BACKUP', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
-            del X_test
-            del y_test
-    np.savez(f'celeba_metrics {date}', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, n_list=n_list)
+            np.savez(f'celeba_metrics {date} BACKUP', 
+                     acc_our=acc_our, f1_our=f1_our, roc_our=roc_our, ap_our=ap_our,
+                     acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, roc_btl=roc_bottleneck,
+                     ap_btl=ap_bottleneck, acc_tgt=acc_tgt, n_list=n_list)
+            # del X_test
+            # del y_test
+    np.savez(f'celeba_metrics {date}', acc_our=acc_our, f1_our=f1_our, roc_our=roc_our, ap_our=ap_our,
+                     acc_btl=acc_bottleneck, f1_btl=f1_bottleneck, roc_btl=roc_bottleneck,
+                     ap_btl=ap_bottleneck, acc_tgt=acc_tgt, n_list=n_list)
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('celeba_metrics 23.05 14_21_37.npz')
+    array_zip = np.load('celeba_metrics 25.05 23_19_53.npz')
     n_list = array_zip['n_list']
     metrics_id = ['acc', 'f1']
     metrics_names = ['Accuracy', 'F1']
@@ -115,6 +146,12 @@ def draw_figures():
         ax.set_ylabel(name)
     plt.show()
 
+def preload_train_test():
+    X, y = get_proc_celeba_np()
+    dump_train_test_on_disk(X, y)
+    del X
+    del y
+
 if __name__=='__main__':
     cls_num = 512
     eps = 0.001
@@ -127,5 +164,5 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
-    # tiny_sample_exp()
-    draw_figures()
+    tiny_sample_exp()
+    # draw_figures()
