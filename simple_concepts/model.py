@@ -119,7 +119,7 @@ class SimpleConcepts():
                 result[:, written] = cur_sub_res
                 norm_sum += cur_sub_res
                 written += 1
-            result[:, written - v - 1: written] /= norm_sum
+            result[:, written - v - 1: written] /= norm_sum[:, None]
         return result
     
     def predict(self, x: np.ndarray) -> np.ndarray:
@@ -154,7 +154,7 @@ class SimpleConcepts():
                 conc_result[:, written] = cur_sub_res
                 norm_sum += cur_sub_res
                 written += 1
-            conc_result[:, written - v - 1: written] /= norm_sum
+            conc_result[:, written - v - 1: written] /= norm_sum[:, None]
         lbl_res = np.zeros(x.shape[0], dtype=int)
         max_proba = np.zeros(x.shape[0])
         for v in range(self.v[0]):

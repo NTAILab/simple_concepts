@@ -101,12 +101,12 @@ def tiny_sample_exp():
             acc_tgt[i, j, 0] = accuracy_score(y_test, tgt_sc)
             print("Accuracy for concepts SC:", acc_sc)
             print("F1 for concepts SC:", f1_sc)
-            tgt_btl, proba_btl = model_btl.predict_conc_proba(X_test)
+            tgt_btl, proba_btl = model_btl.predict_tgt_lbl_conc_proba(X_test)
             proba_lbl = np.stack((proba_btl[:, 0::2], proba_btl[:, 1::2]), axis=-1).argmax(axis=-1)
             proba_btl = proba_btl[:, 1::2]
             tgt_btl = encoder.inverse_transform(tgt_btl[:, None]).ravel()
-            acc_btl = acc_sep_scorer(y_test, proba_lbl)
-            f1_btl = f1_sep_scorer(y_test, proba_lbl)
+            acc_btl = acc_sep_scorer(c_test, proba_lbl)
+            f1_btl = f1_sep_scorer(c_test, proba_lbl)
             for k in range(conc_num):
                 roc_bottleneck[i, j, k] = roc_auc_score(c_test[:, k], proba_btl[:, k])
                 ap_bottleneck[i, j, k] = average_precision_score(c_test[:, k], proba_btl[:, k])
@@ -164,6 +164,6 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
-    preload_train_test()
+    # preload_train_test()
     tiny_sample_exp()
     # draw_figures()
