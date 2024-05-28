@@ -101,8 +101,8 @@ class SimpleConcepts():
     def predict_proba(self, x: np.ndarray) -> np.ndarray:
         cls_pred = self.cls_model.predict(x, self.patcher).reshape((x.shape[0], self.patches_n))
         s = np.zeros((x.shape[0], self.cls_num), dtype=int)
-        cls_idx, cls_stats = np.unique(cls_pred, return_counts=True, axis=1)
-        s[:, cls_idx] = cls_stats
+        for i in range(self.cls_num):
+            s[:, i] = np.count_nonzero(cls_pred == i, axis=1)
         res_shape = np.sum(self.v)
         result = np.zeros((x.shape[0], res_shape))
         written = 0
@@ -136,8 +136,8 @@ class SimpleConcepts():
     def predict_tgt_lbl_conc_proba(self, x: np.ndarray) -> np.ndarray:
         cls_pred = self.cls_model.predict(x, self.patcher).reshape((x.shape[0], self.patches_n))
         s = np.zeros((x.shape[0], self.cls_num), dtype=int)
-        cls_idx, cls_stats = np.unique(cls_pred, return_counts=True, axis=1)
-        s[:, cls_idx] = cls_stats
+        for i in range(self.cls_num):
+            s[:, i] = np.count_nonzero(cls_pred == i, axis=1)
         res_shape = np.sum(self.v[1:])
         conc_result = np.zeros((x.shape[0], res_shape))
         written = 0

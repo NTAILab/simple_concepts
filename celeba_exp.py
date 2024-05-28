@@ -14,7 +14,7 @@ from time import gmtime, strftime
 from functools import partial
 
 def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
-    ds = DataLoader(CelebA('CelebA', download=False, transform=PILToTensor(), target_type=['identity', 'attr']), 30_000, False, num_workers=6)
+    ds = DataLoader(CelebA('CelebA', download=False, transform=PILToTensor(), target_type=['identity', 'attr']), 21_000, False, num_workers=8)
     X_list = []
     y_list = []
     for x, y in ds:
@@ -164,5 +164,6 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
+    preload_train_test()
     tiny_sample_exp()
     # draw_figures()
