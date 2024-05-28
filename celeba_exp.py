@@ -14,7 +14,7 @@ from time import gmtime, strftime
 from functools import partial
 
 def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
-    ds = DataLoader(CelebA('CelebA', download=False, transform=PILToTensor()), 60_000, False, num_workers=6)
+    ds = DataLoader(CelebA('CelebA', download=False, transform=PILToTensor(), target_type=['identity', 'attr']), 30_000, False, num_workers=6)
     X_list = []
     y_list = []
     for x, y in ds:
