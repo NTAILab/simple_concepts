@@ -25,6 +25,11 @@ def get_proc_celeba_np() -> Tuple[np.ndarray, np.ndarray]:
     std[std < 1e-6] = 1.0
     X_np = (X_np - np.mean(X_np, 0, keepdims=True)) / std
     y_np = np.concatenate(y_list, axis=0, dtype=np.int32)
+    tgt_idx = np.argsort(y_np[:, 0])
+    n_tgt_cls = 20
+    tgt_split = np.array_split(tgt_idx, n_tgt_cls)
+    for i, idces in enumerate(tgt_split):
+        y_np[idces, 0] = i
     return X_np, y_np
 
 TRAIN_PATH = './train_array.npz'
@@ -127,11 +132,13 @@ def tiny_sample_exp():
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('celeba_metrics 25.05 23_19_53.npz')
+    array_zip = np.load('celeba_metrics 28.05 10_02_56.npz')
     n_list = array_zip['n_list']
-    metrics_id = ['acc', 'f1']
-    metrics_names = ['Accuracy', 'F1']
+    metrics_id = ['acc', 'f1', 'roc', 'ap']
+    metrics_names = ['Accuracy', 'F1', 'ROC-AUC', 'AP']
     for id, name in zip(metrics_id, metrics_names):
+        if array_zip.get(id + '_our') is None:
+            continue
         fig, ax = plt.subplots(1, 1)
         fig.suptitle(name)
         sc_metric = np.mean(array_zip[id + '_our'], axis=0)
@@ -144,6 +151,16 @@ def draw_figures():
         ax.legend()
         ax.set_xlabel('train sample size')
         ax.set_ylabel(name)
+    if array_zip.get('acc_tgt') is not None:
+        fig, ax = plt.subplots(1, 1)
+        fig.suptitle('Target accuracy')
+        tgt_acc = np.mean(array_zip['acc_tgt'], axis=0)
+        ax.plot(n_list, tgt_acc[:, 0], 'rs--', label='Our model')
+        ax.plot(n_list, tgt_acc[:, 1], 'gs--', label='Bottleneck')
+        ax.grid()
+        ax.legend()
+        ax.set_xlabel('train sample size')
+        ax.set_ylabel('Accuracy')
     plt.show()
 
 def preload_train_test():
@@ -153,17 +170,17 @@ def preload_train_test():
     del y
 
 if __name__=='__main__':
-    cls_num = 512
+    cls_num = 256
     eps = 0.001
     device = 'cuda'
     ae_kw = {
-        'latent_dim': 48, 
+        'latent_dim': 32, 
         'epochs_num': 30, 
         'batch_num': 100, 
         'l_r': 1e-3, 
         'device': device,
         'early_stop': 3,
     }
-    # preload_train_test()
+    preload_train_test()
     tiny_sample_exp()
     # draw_figures()
