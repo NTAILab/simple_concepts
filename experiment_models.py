@@ -5,7 +5,7 @@ from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.mixture import GaussianMixture
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from typing import Optional
 from copy import deepcopy
 
@@ -464,7 +464,8 @@ class EasyClustering():
     def __init__(self, cls_num: int, autoencoder):
         self.autoencoder = autoencoder
         # self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
-        self.clusterizer = KMeans(cls_num)
+        # self.clusterizer = KMeans(cls_num)
+        self.clusterizer = MiniBatchKMeans(cls_num, batch_size=16384)
         
     def fit(self, X: np.ndarray, patcher=None) -> 'EasyClustering':
         self.autoencoder.fit(X, patcher)

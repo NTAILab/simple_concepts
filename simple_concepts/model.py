@@ -2,7 +2,9 @@ import numpy as np
 import sympy as sp
 from sympy import Expr
 import numba
+from scipy.special import softmax, log_softmax
 from typing import Optional, List
+import warnings
 
 @numba.njit
 def multinomial_coef(arr):
@@ -22,7 +24,7 @@ class SimpleConcepts():
         self.cls_num = cls_num
         self.cls_model = clustering_model
         self.patcher = patcher
-        self.eps = epsilon
+        self.eps = np.log(epsilon)
         self.is_fit = False
         
     def get_model_with_rules(self, rules: List[Expr]) -> 'SimpleConcepts':
@@ -42,7 +44,8 @@ class SimpleConcepts():
         master_mask = uq_mask[idx]
         filtered_cls_lbl = self.cls_labels[master_mask]
         filtered_c = self.c[master_mask]
-        new_model = SimpleConcepts(self.cls_num, self.cls_model, self.patcher, self.eps)
+        new_model = SimpleConcepts(self.cls_num, self.cls_model, self.patcher, 1)
+        new_model.eps = self.eps
         new_model._count_statistics(filtered_c, filtered_cls_lbl)
         new_model.c = filtered_c
         new_model.cls_labels = filtered_cls_lbl
@@ -55,21 +58,21 @@ class SimpleConcepts():
         patches_n = cluster_labels.shape[-1]
         # C_v is proportion of images with the cerain concepts to all images
         self.C_v = np.ndarray(concepts.shape[1], dtype=object) # Pr{C^r = v}, list is from v to r (table 2)
-        self.U = np.ndarray(concepts.shape[1], dtype=object) # coeffs U^r_v, from v to r
+        # self.U = np.ndarray(concepts.shape[1], dtype=object) # coeffs U^r_v, from v to r
         for i in range(concepts.shape[1]):
             values, c_counts = np.unique(concepts[:, i], axis=0, return_counts=True)
             prop = np.zeros(values.max() + 1)
-            cur_u = np.ones(values.max() + 1)
+            # cur_u = np.ones(values.max() + 1)
             for j, v in enumerate(values):
                 prop[v] = c_counts[j] / concepts.shape[0]
-            self.C_v[i] = prop
-            self.U[i] = cur_u
+            self.C_v[i] = np.log(prop)
+            # self.U[i] = cur_u
         self.p_irv = [] # vector p in multinomial distribution (table 3)
-        self.s_i = np.zeros(self.cls_num) # number of patches in each class
+        # self.s_i = np.zeros(self.cls_num) # number of patches in each class
         self.v = np.max(concepts, axis=0) + 1 # events for each concept
         for i in range(self.cls_num):
             cluster_mask = cluster_labels == i
-            self.s_i[i] = np.count_nonzero(cluster_mask)
+            # self.s_i[i] = np.count_nonzero(cluster_mask)
             self.p_irv.append([])
             for r in range(concepts.shape[1]):
                 self.p_irv[-1].append([])
@@ -78,7 +81,9 @@ class SimpleConcepts():
                     denom = patches_n * np.count_nonzero(cur_mask)
                     c_r_v_mask = np.tile(cur_mask[:, None], (1, patches_n))
                     stat = np.count_nonzero(np.logical_and(c_r_v_mask, cluster_mask)) / denom
-                    self.p_irv[-1][-1].append(stat)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        self.p_irv[-1][-1].append(np.log(stat))
     
     # X - images, y - target, c - concepts
     # if only y is provided, then y[0] is target, other components are concepts
@@ -107,19 +112,20 @@ class SimpleConcepts():
         result = np.zeros((x.shape[0], res_shape))
         written = 0
         for j in range(self.c.shape[-1]):
-            norm_sum = 0
+            cur_conc_res = np.empty((result.shape[0], self.v[j]))
             for v in range(self.v[j]):
                 p_irv_cur = np.zeros(self.cls_num) # (r)
                 for k in range(self.cls_num):
                     p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
-                p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+                p_irv_cur = log_softmax(p_irv_cur)
                 C_v = self.C_v[j][v]
-                P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
-                cur_sub_res = P_s_p * C_v
-                result[:, written] = cur_sub_res
-                norm_sum += cur_sub_res
+                P_s_p = np.sum(s * p_irv_cur[None, :], axis=1)#np.prod(np.power(p_irv_cur[None, :], s), axis=1)
+                # cur_sub_res = P_s_p + C_v
+                # result[:, written] = cur_sub_res
+                cur_conc_res[:, v] = P_s_p + C_v
+                # norm_sum += cur_sub_res
                 written += 1
-            result[:, written - v - 1: written] /= norm_sum[:, None]
+            result[:, written - v - 1: written] = softmax(cur_conc_res, axis=1)
         return result
     
     def predict(self, x: np.ndarray) -> np.ndarray:
@@ -142,29 +148,27 @@ class SimpleConcepts():
         conc_result = np.zeros((x.shape[0], res_shape))
         written = 0
         for j in range(1, self.c.shape[-1]):
-            norm_sum = 0
+            cur_conc_res = np.empty((x.shape[0], self.v[j]))
             for v in range(self.v[j]):
                 p_irv_cur = np.zeros(self.cls_num) # (r)
                 for k in range(self.cls_num):
                     p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
-                p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+                p_irv_cur = log_softmax(p_irv_cur)
                 C_v = self.C_v[j][v]
-                P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
-                cur_sub_res = P_s_p * C_v
-                conc_result[:, written] = cur_sub_res
-                norm_sum += cur_sub_res
+                P_s_p = np.sum(s * p_irv_cur[None, :], axis=1)
+                cur_conc_res[:, v] = P_s_p + C_v
                 written += 1
-            conc_result[:, written - v - 1: written] /= norm_sum[:, None]
+            conc_result[:, written - v - 1: written] = softmax(cur_conc_res, axis=1)
         lbl_res = np.zeros(x.shape[0], dtype=int)
-        max_proba = np.zeros(x.shape[0])
+        max_proba = float('-inf') * np.ones(x.shape[0])
         for v in range(self.v[0]):
             p_irv_cur = np.zeros(self.cls_num) # (r)
             for k in range(self.cls_num):
                 p_irv_cur[k] = max(self.p_irv[k][0][v], self.eps)
-            p_irv_cur = p_irv_cur / np.sum(p_irv_cur)
+            p_irv_cur = log_softmax(p_irv_cur)
             C_v = self.C_v[0][v]
-            P_s_p = np.prod(np.power(p_irv_cur[None, :], s), axis=1)
-            cur_sub_res = P_s_p * C_v
+            P_s_p = np.sum(s * p_irv_cur[None, :], axis=1)
+            cur_sub_res = P_s_p + C_v
             mask = cur_sub_res > max_proba
             max_proba[mask] = cur_sub_res[mask]
             lbl_res[mask] = v

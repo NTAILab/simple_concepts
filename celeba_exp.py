@@ -132,7 +132,7 @@ def tiny_sample_exp():
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('celeba_metrics 28.05 10_02_56.npz')
+    array_zip = np.load('celeba_metrics 29.05 22_02_53.npz')
     n_list = array_zip['n_list']
     metrics_id = ['acc', 'f1', 'roc', 'ap']
     metrics_names = ['Accuracy', 'F1', 'ROC-AUC', 'AP']
@@ -170,7 +170,7 @@ def preload_train_test():
     del y
 
 if __name__=='__main__':
-    cls_num = 256
+    cls_num = 512
     eps = 0.001
     device = 'cuda'
     ae_kw = {
@@ -181,6 +181,6 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
-    preload_train_test()
+    # preload_train_test()
     tiny_sample_exp()
     # draw_figures()
