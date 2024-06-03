@@ -75,7 +75,7 @@ def rule_exp():
     wrong_idx = np.arange(X_train.shape[0])
     wrong_idx, _ = train_test_split(wrong_idx, train_size=0.5)
     y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
-    no_patcher = lambda x: x
+    no_patcher = lambda x: x[:, None, ...]
     clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
     model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
     model.fit(X_train, y_train_fixed)
@@ -94,43 +94,49 @@ def rule_exp():
     x_2_1, x_0_1, x_1_1, x_1_1, x_2_0, x_0_0, x_1_0 = sp.symbols('x_2_1, x_0_1, x_1_1, x_1_1, x_2_0, x_0_0, x_1_0')
     rule_pos = Equivalent((x_1_1 & x_2_1) | (x_1_0 & x_2_0), x_0_1)
     rule_neg = Equivalent((x_1_0 & x_2_1) | (x_1_1 & x_2_0), x_0_0)
-    rule_in = [rule_pos, rule_neg]
-    errors_n = check_rule_errors(scores, rule_in)
+    rule_1 = [rule_pos, rule_neg]
+    rule_2 = [(x_1_1 & x_2_1) >> x_0_1]
+    rule_3 = [rule_pos]
+    rule_4 = [(x_1_1 & x_2_1) >> x_0_1, (x_1_0 & x_2_1) >> x_0_0]
+    rules_all_list = [rule_2, rule_4, rule_3]
+    
+    errors_n = check_rule_errors(scores, rule_1)
     print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
-    checker = get_rule_checker(model, rule_in)
+    checker = get_rule_checker(model, rule_1)
     errors_n = checker.check(probas_before)
     print(f'Rule errors (probas): {errors_n / scores.shape[0]}')
     
-    
-    rule_model = model.get_model_with_rules(rule_in)
-    print('--- Inserted rule ---')
-    scores = rule_model.predict(X_test)
-    acc = acc_sep_scorer(y_test, scores)
-    f1 = f1_sep_scorer(y_test, scores)
-    print("Accuracy for concepts:", acc)
-    print("F1 for concepts:", f1)
-    probas_after = rule_model.predict_proba(X_test)
-    roc_auc = roc_auc_score(y_test[:, 0], probas_after[:, 1])
-    print("ROC-AUC for target:", roc_auc)
-    ap = average_precision_score(y_test[:, 0], probas_after[:, 1])
-    print("AP for target:", ap)
-    errors_n = check_rule_errors(scores, rule_in)
-    print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
-    errors_n = checker.check(probas_after)
-    print(f'Rule errors (probas): {errors_n / scores.shape[0]}')
-    
     bin_n = 12
-    fig, ax = plt.subplots(1, 2)
+    fig, ax = plt.subplots(1, 1 + len(rules_all_list), figsize=(6 * len(rules_all_list), 6))
     fig.suptitle('Target concept proba density')
-    probas = (probas_before, probas_after)
-    for i in range(2):
-        proba_0 = probas[i][:, 1]
-        vals, bins = np.histogram(proba_0, bin_n, range=(0, 1), density=True)
-        ax[i].hist(bins[:-1], bins, weights=vals)
-    ax[0].set_title('Without rule')
-    ax[0].set_xlabel('proba')
-    ax[1].set_title('With rule')
-    ax[1].set_xlabel('proba')
+    def draw_dens(proba, idx, name):
+        vals, bins = np.histogram(proba, bin_n, range=(0, 1), density=True)
+        ax[idx].hist(bins[:-1], bins, weights=vals, zorder=100)
+        ax[idx].set_title(name)
+        ax[idx].set_xlabel('Probability')
+        ax[idx].grid()
+    draw_dens(probas_before[:, 1], 0, 'Without rule')
+    
+    
+    for i, rule_in in enumerate(rules_all_list):
+        rule_model = model.get_model_with_rules(rule_in)
+        print(f'--- Inserted rule {rule_in} ---')
+        scores = rule_model.predict(X_test)
+        acc = acc_sep_scorer(y_test, scores)
+        f1 = f1_sep_scorer(y_test, scores)
+        print("Accuracy for concepts:", acc)
+        print("F1 for concepts:", f1)
+        probas_after = rule_model.predict_proba(X_test)
+        roc_auc = roc_auc_score(y_test[:, 0], probas_after[:, 1])
+        print("ROC-AUC for target:", roc_auc)
+        ap = average_precision_score(y_test[:, 0], probas_after[:, 1])
+        print("AP for target:", ap)
+        errors_n = check_rule_errors(scores, rule_1)
+        print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
+        errors_n = checker.check(probas_after)
+        print(f'Rule errors (probas): {errors_n / scores.shape[0]}')
+        draw_dens(probas_after[:, 1], i + 1, f'${sp.latex(sp.And(*rule_in))}$')
+    plt.tight_layout()
     plt.show()
     
 def check_rule_errors(concepts: np.ndarray, rules: List[sp.Expr]):
@@ -241,11 +247,11 @@ def wrong_concepts():
     plt.show()
     
 def tiny_sample_exp():
-    no_patcher = lambda x: x
+    no_patcher = lambda x: x[:, None, ...]
     global y_train
     y_train, c_train = y_train[:, 0], y_train[:, 1:]
-    n_list = [3000, 4500, 6000]
-    epochs_n = [30, 20, 20]
+    n_list = [1000, 2000, 3000, 4000, 5000]
+    epochs_n = [200, 150, 70, 50, 50]
     iter_num = 10
     f1_our = np.zeros((iter_num, len(n_list), 4))
     f1_bottleneck = np.zeros((iter_num, len(n_list), 4))
@@ -269,7 +275,7 @@ def tiny_sample_exp():
             
             print('--- Bottleneck ---')
             
-            model = BottleNeck(1, ep_n, 256, 1e-3, 'cuda')
+            model = BottleNeck(1, ep_n, 256, 1e-3, 'cuda', 2)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)
@@ -279,11 +285,12 @@ def tiny_sample_exp():
             print("Accuracy for concepts:", acc)
             print("F1 for concepts:", f1)
     np.savez('mnist_metrics4', acc_our=acc_our, f1_our=f1_our, acc_btl=acc_bottleneck, f1_btl=f1_bottleneck)
-    fig, axes = plt.subplots(2, 4, figsize=(30, 6), sharex='all', sharey='all')
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6), sharex='all', sharey='all')
+    fig.suptitle('F1')
     f1_our = np.mean(f1_our, axis=0)
     f1_bottleneck = np.mean(f1_bottleneck, axis=0)
     for i in range(4):
-        ax = axes[0, i]
+        ax = axes[i]
         ax.plot(n_list, f1_our[:, i], 'rs--', label='Our model')
         ax.plot(n_list, f1_bottleneck[:, i], 'gs--', label='Bottleneck')
         ax.grid()
@@ -292,10 +299,13 @@ def tiny_sample_exp():
         if i == 0:
             ax.set_ylabel('F1')
         ax.set_title('Concept ' + str(i))
+    plt.tight_layout()
     acc_our = np.mean(acc_our, axis=0)
     acc_bottleneck = np.mean(acc_bottleneck, axis=0)
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6), sharex='all', sharey='all')
+    fig.suptitle('Accuracy')
     for i in range(4):
-        ax = axes[1, i]
+        ax = axes[i]
         ax.plot(n_list, acc_our[:, i], 'rs--', label='Our model')
         ax.plot(n_list, acc_bottleneck[:, i], 'gs--', label='Bottleneck')
         ax.grid()
@@ -343,12 +353,15 @@ if __name__=='__main__':
     eps = 0.001
     ae_kw = {
         'latent_dim': 16, 
-        'epochs_num': 20, 
+        'epochs_num': 30, 
         'batch_num': 1024, 
         'l_r': 1e-3, 
-        'device': 'cuda'
+        'device': 'cuda',
+        'early_stop': 3
     }
     X, y = get_proc_mnist_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
-    wrong_concepts()
+    # tiny_sample_exp()
+    # wrong_concepts()
     # draw_figures()
+    rule_exp()

@@ -67,24 +67,24 @@ class Autoencoder(torch.nn.Module):
     #     ).to(self.device)
     
     # whole images, not deep
-    # def _get_encoder(self):
-    #     return torch.nn.Sequential(
-    #         torch.nn.Conv2d(1, 16, (8, 8), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(16, 32, (6, 6), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Flatten(),
-    #         torch.nn.Linear(288, self.latent_dim),
-    #     ).to(self.device)
+    def _get_encoder(self):
+        return torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, (8, 8), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(16, 32, (6, 6), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Flatten(),
+            torch.nn.Linear(288, self.latent_dim),
+        ).to(self.device)
         
-    # def _get_decoder(self):
-    #     return torch.nn.Sequential(
-    #         torch.nn.Linear(self.latent_dim, 288),
-    #         Reshape(-1, 32, 3, 3),
-    #         torch.nn.ConvTranspose2d(32, 16, 6, stride=2, output_padding=(1, 1)),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.ConvTranspose2d(16, 1, (8, 8), stride=(2, 2), output_padding=(0, 0)),
-    #     ).to(self.device)
+    def _get_decoder(self):
+        return torch.nn.Sequential(
+            torch.nn.Linear(self.latent_dim, 288),
+            Reshape(-1, 32, 3, 3),
+            torch.nn.ConvTranspose2d(32, 16, 6, stride=2, output_padding=(1, 1)),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(16, 1, (8, 8), stride=(2, 2), output_padding=(0, 0)),
+        ).to(self.device)
     
     # 10x10
     # def _get_encoder(self):
@@ -117,28 +117,28 @@ class Autoencoder(torch.nn.Module):
     #     ).to(self.device)
     
     # celeba quarters
-    def _get_encoder(self):
-        return torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, (16, 16), stride=2),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (16, 16), stride=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 32, (24, 16), stride=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Flatten(),
-            torch.nn.Linear(2016, self.latent_dim),
-        ).to(self.device)
+    # def _get_encoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Conv2d(3, 16, (16, 16), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(16, 32, (16, 16), stride=1),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(32, 32, (24, 16), stride=1),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Flatten(),
+    #         torch.nn.Linear(2016, self.latent_dim),
+    #     ).to(self.device)
         
-    def _get_decoder(self):
-        return torch.nn.Sequential(
-            torch.nn.Linear(self.latent_dim, 2016),
-            Reshape(-1, 32, 9, 7),
-            torch.nn.ConvTranspose2d(32, 32, (24, 16), stride=1, output_padding=(0, 0)),
-            torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(1, 1), output_padding=(0, 0)),
-            torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
-        ).to(self.device)
+    # def _get_decoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Linear(self.latent_dim, 2016),
+    #         Reshape(-1, 32, 9, 7),
+    #         torch.nn.ConvTranspose2d(32, 32, (24, 16), stride=1, output_padding=(0, 0)),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(1, 1), output_padding=(0, 0)),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.ConvTranspose2d(16, 3, (16, 16), stride=2, output_padding=1),
+    #     ).to(self.device)
     
     # celeba all
     # def _get_encoder(self):
@@ -165,28 +165,28 @@ class Autoencoder(torch.nn.Module):
     #     ).to(self.device)
     
     # 110x90
-    def _get_encoder(self):
-        return torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, (20, 16), stride=2),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (16, 16), stride=2),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 32, (8, 8), stride=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Flatten(),
-            torch.nn.Linear(1440, self.latent_dim),
-        ).to(self.device)
+    # def _get_encoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Conv2d(3, 16, (20, 16), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(16, 32, (16, 16), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(32, 32, (8, 8), stride=1),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Flatten(),
+    #         torch.nn.Linear(1440, self.latent_dim),
+    #     ).to(self.device)
         
-    def _get_decoder(self):
-        return torch.nn.Sequential(
-            torch.nn.Linear(self.latent_dim, 1440),
-            Reshape(-1, 32, 9, 5),
-            torch.nn.ConvTranspose2d(32, 32, (8, 8), stride=1, output_padding=(0, 0)),
-            torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(0, 0)),
-            torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(16, 3, (20, 16), stride=2, output_padding=0),
-        ).to(self.device)
+    # def _get_decoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Linear(self.latent_dim, 1440),
+    #         Reshape(-1, 32, 9, 5),
+    #         torch.nn.ConvTranspose2d(32, 32, (8, 8), stride=1, output_padding=(0, 0)),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.ConvTranspose2d(32, 16, (16, 16), stride=(2, 2), output_padding=(0, 0)),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.ConvTranspose2d(16, 3, (20, 16), stride=2, output_padding=0),
+    #     ).to(self.device)
     
     def __init__(self, latent_dim: int, epochs_num: int, batch_num: int, l_r: float, device: torch.device, early_stop: Optional[int]=None):
         super().__init__()
@@ -299,28 +299,28 @@ class BottleNeck(torch.nn.Module):
     #     ).to(self.device)
         
     # for 28x28
-    # def _get_emb_nn(self):
-    #     return torch.nn.Sequential(
-    #         torch.nn.Conv2d(1, 16, (3, 3), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(16, 32, (3, 3), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(32, 32, (3, 3), stride=1),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Flatten(),
-    #     ).to(self.device)
-    
-    # for celeba
     def _get_emb_nn(self):
         return torch.nn.Sequential(
-            torch.nn.Conv2d(3, 16, (32, 24), stride=3),
+            torch.nn.Conv2d(1, 16, (3, 3), stride=2),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (16, 16), stride=2),
+            torch.nn.Conv2d(16, 32, (3, 3), stride=2),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 32, (16, 16), stride=1),
+            torch.nn.Conv2d(32, 32, (3, 3), stride=1),
             torch.nn.LeakyReLU(),
             torch.nn.Flatten(),
         ).to(self.device)
+    
+    # for celeba
+    # def _get_emb_nn(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Conv2d(3, 16, (32, 24), stride=3),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(16, 32, (16, 16), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(32, 32, (16, 16), stride=1),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Flatten(),
+    #     ).to(self.device)
     
     def __init__(self, lmd: float, epochs_num: int, batch_num: int, l_r: float, device: torch.device, early_stop: Optional[int]):
         super().__init__()
@@ -463,9 +463,9 @@ class BottleNeck(torch.nn.Module):
 class EasyClustering():
     def __init__(self, cls_num: int, autoencoder):
         self.autoencoder = autoencoder
-        # self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
+        self.clusterizer = GaussianMixture(cls_num, covariance_type='full', tol=0.01)
         # self.clusterizer = KMeans(cls_num)
-        self.clusterizer = MiniBatchKMeans(cls_num, batch_size=16384)
+        # self.clusterizer = MiniBatchKMeans(cls_num, batch_size=16384)
         
     def fit(self, X: np.ndarray, patcher=None) -> 'EasyClustering':
         self.autoencoder.fit(X, patcher)
