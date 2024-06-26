@@ -1,21 +1,9 @@
 import numpy as np
 import sympy as sp
 from sympy import Expr
-import numba
 from scipy.special import softmax, log_softmax
 from typing import Optional, List
 import warnings
-
-@numba.njit
-def multinomial_coef(arr):
-    res, i = 1, 1
-    for a in arr:
-        for j in range(1, a + 1):
-            res *= i
-            res //= j
-            i += 1
-    return res
-
 
 class SimpleConcepts():
     # patcher is mapping (n, ...) -> (n, p, ...)
@@ -62,17 +50,13 @@ class SimpleConcepts():
         for i in range(concepts.shape[1]):
             values, c_counts = np.unique(concepts[:, i], axis=0, return_counts=True)
             prop = np.zeros(values.max() + 1)
-            # cur_u = np.ones(values.max() + 1)
             for j, v in enumerate(values):
                 prop[v] = c_counts[j] / concepts.shape[0]
             self.C_v[i] = np.log(prop)
-            # self.U[i] = cur_u
         self.p_irv = [] # vector p in multinomial distribution (table 3)
-        # self.s_i = np.zeros(self.cls_num) # number of patches in each class
         self.v = np.max(concepts, axis=0) + 1 # events for each concept
         for i in range(self.cls_num):
             cluster_mask = cluster_labels == i
-            # self.s_i[i] = np.count_nonzero(cluster_mask)
             self.p_irv.append([])
             for r in range(concepts.shape[1]):
                 self.p_irv[-1].append([])
@@ -80,7 +64,10 @@ class SimpleConcepts():
                     cur_mask = concepts[:, r] == v
                     denom = patches_n * np.count_nonzero(cur_mask)
                     c_r_v_mask = np.tile(cur_mask[:, None], (1, patches_n))
-                    stat = np.count_nonzero(np.logical_and(c_r_v_mask, cluster_mask)) / denom
+                    if denom == 0:
+                        stat = 0
+                    else:
+                        stat = np.count_nonzero(np.logical_and(c_r_v_mask, cluster_mask)) / denom
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         self.p_irv[-1][-1].append(np.log(stat))
@@ -119,11 +106,8 @@ class SimpleConcepts():
                     p_irv_cur[k] = max(self.p_irv[k][j][v], self.eps)
                 p_irv_cur = log_softmax(p_irv_cur)
                 C_v = self.C_v[j][v]
-                P_s_p = np.sum(s * p_irv_cur[None, :], axis=1)#np.prod(np.power(p_irv_cur[None, :], s), axis=1)
-                # cur_sub_res = P_s_p + C_v
-                # result[:, written] = cur_sub_res
+                P_s_p = np.sum(s * p_irv_cur[None, :], axis=1)
                 cur_conc_res[:, v] = P_s_p + C_v
-                # norm_sum += cur_sub_res
                 written += 1
             result[:, written - v - 1: written] = softmax(cur_conc_res, axis=1)
         return result

@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score
 from typing import Tuple
-from experiment_models import Autoencoder, BottleNeck, EasyClustering, quarter_patcher, window_patcher
+from experiment_models import Autoencoder, BottleNeck, EasyClustering, window_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
 from time import gmtime, strftime
 from functools import partial
@@ -59,7 +59,7 @@ def tiny_sample_exp():
     patcher = partial(window_patcher, kernel_size=(110, 90), stride=(17, 22))
     n_list = [1000, 2000, 4000, 6000, 8000, 10000]
     epochs_n = [40, 40, 30, 30, 20, 20]
-    iter_num = 10
+    iter_num = 100
     f1_our = np.zeros((iter_num, len(n_list), conc_num))
     f1_bottleneck = np.zeros((iter_num, len(n_list), conc_num))
     acc_our = np.zeros((iter_num, len(n_list), conc_num))
@@ -132,10 +132,10 @@ def tiny_sample_exp():
     
 def draw_figures():
     import matplotlib.pyplot as plt
-    array_zip = np.load('celeba_metrics 01.06 18_17_22.npz')
+    array_zip = np.load('')
     n_list = array_zip['n_list']
-    metrics_id = ['acc', 'f1', 'roc', 'ap']
-    metrics_names = ['Accuracy', 'F1', 'ROC-AUC', 'AP']
+    metrics_id = ['f1', 'roc']
+    metrics_names = ['F1', 'ROC-AUC']
     for id, name in zip(metrics_id, metrics_names):
         if array_zip.get(id + '_our') is None:
             continue
@@ -143,24 +143,24 @@ def draw_figures():
         fig.suptitle(name)
         sc_metric = np.mean(array_zip[id + '_our'], axis=0)
         btl_metric = np.mean(array_zip[id + '_btl'], axis=0)
-        ax.fill_between(n_list, sc_metric.min(axis=-1), sc_metric.max(axis=-1), color='red', alpha=.1)
-        ax.plot(n_list, sc_metric.mean(axis=-1), 'rs--', label='Our model')
-        ax.fill_between(n_list, btl_metric.min(axis=-1), btl_metric.max(axis=-1), color='green', alpha=.1)
-        ax.plot(n_list, btl_metric.mean(axis=-1), 'gs--', label='Bottleneck')
+        # ax.fill_between(n_list, sc_metric.min(axis=-1), sc_metric.max(axis=-1), color='red', alpha=.1)
+        ax.plot(n_list, sc_metric.mean(axis=-1), 'r', label='FI-CBL', marker='^', markerfacecolor='white', markersize=8)
+        # ax.fill_between(n_list, btl_metric.min(axis=-1), btl_metric.max(axis=-1), color='green', alpha=.1)
+        ax.plot(n_list, btl_metric.mean(axis=-1), 'b', label='CBM', marker='o', markerfacecolor='white', markersize=8)
         ax.grid()
         ax.legend()
-        ax.set_xlabel('train sample size')
+        ax.set_xlabel('training set size')
         ax.set_ylabel(name)
-    if array_zip.get('acc_tgt') is not None:
-        fig, ax = plt.subplots(1, 1)
-        fig.suptitle('Target accuracy')
-        tgt_acc = np.mean(array_zip['acc_tgt'], axis=0)
-        ax.plot(n_list, tgt_acc[:, 0], 'rs--', label='Our model')
-        ax.plot(n_list, tgt_acc[:, 1], 'gs--', label='Bottleneck')
-        ax.grid()
-        ax.legend()
-        ax.set_xlabel('train sample size')
-        ax.set_ylabel('Accuracy')
+    # if array_zip.get('acc_tgt') is not None:
+    #     fig, ax = plt.subplots(1, 1)
+    #     fig.suptitle('Target accuracy')
+    #     tgt_acc = np.mean(array_zip['acc_tgt'], axis=0)
+    #     ax.plot(n_list, tgt_acc[:, 0], 'rs--', label='Our model')
+    #     ax.plot(n_list, tgt_acc[:, 1], 'gs--', label='Bottleneck')
+    #     ax.grid()
+    #     ax.legend()
+    #     ax.set_xlabel('train sample size')
+    #     ax.set_ylabel('Accuracy')
     plt.show()
 
 def preload_train_test():
@@ -181,6 +181,6 @@ if __name__=='__main__':
         'device': device,
         'early_stop': 3,
     }
-    # preload_train_test()
-    # tiny_sample_exp()
-    draw_figures()
+    preload_train_test()
+    tiny_sample_exp()
+    # draw_figures()

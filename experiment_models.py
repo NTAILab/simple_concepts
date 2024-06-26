@@ -43,48 +43,48 @@ class Autoencoder(torch.nn.Module):
     #     ).to(self.device)
     
     # whole images, deep enough
-    # def _get_encoder(self):
-    #     return torch.nn.Sequential(
-    #         torch.nn.Conv2d(1, 16, (3, 3), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(16, 32, (3, 3), stride=2),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Conv2d(32, 32, (3, 3), stride=1),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.Flatten(),
-    #         torch.nn.Linear(512, self.latent_dim),
-    #     ).to(self.device)
-        
-    # def _get_decoder(self):
-    #     return torch.nn.Sequential(
-    #         torch.nn.Linear(self.latent_dim, 512),
-    #         Reshape(-1, 32, 4, 4),
-    #         torch.nn.ConvTranspose2d(32, 32, 3, stride=1, output_padding=(0, 0)),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.ConvTranspose2d(32, 16, (3, 3), stride=(2, 2), output_padding=(0, 0)),
-    #         torch.nn.LeakyReLU(),
-    #         torch.nn.ConvTranspose2d(16, 1, (3, 3), stride=2, output_padding=1),
-    #     ).to(self.device)
-    
-    # whole images, not deep
     def _get_encoder(self):
         return torch.nn.Sequential(
-            torch.nn.Conv2d(1, 16, (8, 8), stride=2),
+            torch.nn.Conv2d(1, 16, (3, 3), stride=2),
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 32, (6, 6), stride=2),
+            torch.nn.Conv2d(16, 32, (3, 3), stride=2),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 32, (3, 3), stride=1),
             torch.nn.LeakyReLU(),
             torch.nn.Flatten(),
-            torch.nn.Linear(288, self.latent_dim),
+            torch.nn.Linear(512, self.latent_dim),
         ).to(self.device)
         
     def _get_decoder(self):
         return torch.nn.Sequential(
-            torch.nn.Linear(self.latent_dim, 288),
-            Reshape(-1, 32, 3, 3),
-            torch.nn.ConvTranspose2d(32, 16, 6, stride=2, output_padding=(1, 1)),
+            torch.nn.Linear(self.latent_dim, 512),
+            Reshape(-1, 32, 4, 4),
+            torch.nn.ConvTranspose2d(32, 32, 3, stride=1, output_padding=(0, 0)),
             torch.nn.LeakyReLU(),
-            torch.nn.ConvTranspose2d(16, 1, (8, 8), stride=(2, 2), output_padding=(0, 0)),
+            torch.nn.ConvTranspose2d(32, 16, (3, 3), stride=(2, 2), output_padding=(0, 0)),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(16, 1, (3, 3), stride=2, output_padding=1),
         ).to(self.device)
+    
+    # whole images, not deep
+    # def _get_encoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Conv2d(1, 16, (8, 8), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Conv2d(16, 32, (6, 6), stride=2),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.Flatten(),
+    #         torch.nn.Linear(288, self.latent_dim),
+    #     ).to(self.device)
+        
+    # def _get_decoder(self):
+    #     return torch.nn.Sequential(
+    #         torch.nn.Linear(self.latent_dim, 288),
+    #         Reshape(-1, 32, 3, 3),
+    #         torch.nn.ConvTranspose2d(32, 16, 6, stride=2, output_padding=(1, 1)),
+    #         torch.nn.LeakyReLU(),
+    #         torch.nn.ConvTranspose2d(16, 1, (8, 8), stride=(2, 2), output_padding=(0, 0)),
+    #     ).to(self.device)
     
     # 10x10
     # def _get_encoder(self):
@@ -484,10 +484,13 @@ def vert_patcher(X: np.ndarray) -> np.ndarray:
     result[:, 1, ...] = X[..., half_h:, :]
     return result
 
-def quarter_patcher(X: np.ndarray) -> np.ndarray:
+def quarter_patcher(X) -> np.ndarray:
     half_h = X.shape[-2] // 2
     half_w = X.shape[-1] // 2
-    result = np.zeros((X.shape[0], 4, X.shape[1], half_h, half_w), dtype=X.dtype)
+    if type(X) is np.ndarray:
+        result = np.zeros((X.shape[0], 4, X.shape[1], half_h, half_w), dtype=X.dtype)
+    else:
+        result = torch.zeros((X.shape[0], 4, X.shape[1], half_h, half_w), dtype=X.dtype, device=X.device)
     result[:, 0, ...] = X[..., :half_h, :half_w]
     result[:, 1, ...] = X[..., :half_h, half_w:]
     result[:, 2, ...] = X[..., half_h:, :half_w]
@@ -503,7 +506,7 @@ def window_patcher(X, kernel_size, stride, device='cpu'):
             patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
             patches = patches.transpose((0, 3, 1, 2))
         else:
-            # X_tensor = X # makes copy !!!!
+            # X_tensor = X # makes copy!
             patches = unfold(X)
             patches = patches.reshape((X.shape[0], X.shape[1], -1, patches.shape[-1]))
             patches = patches.permute((0, 3, 1, 2))

@@ -4,8 +4,6 @@ from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 from simple_concepts.model import SimpleConcepts
-from sklearn.decomposition import PCA
-from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score
 from typing import Tuple, List
@@ -50,7 +48,7 @@ def get_proc_mnist_np() -> Tuple[np.ndarray, np.ndarray]:
     return X_np, y_np
 
 def base_experiment():
-    no_patcher = lambda x: x
+    no_patcher = lambda x: x[:, None, ...]
     clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
     model = SimpleConcepts(cls_num, clusterizer, vert_patcher, eps)
     model.fit(X_train, y_train)
@@ -60,15 +58,15 @@ def base_experiment():
     print("Accuracy for concepts:", acc)
     print("F1 for concepts:", f1)
     
-    # print('--- Bottleneck ---')
+    print('--- Bottleneck ---')
     
-    # model = BottleNeck(1, 20, 256, 1e-3, 'cuda')
-    # model.fit(X_train, y_train[:, 0], y_train[:, 1:])
-    # scores = model.predict(X_test)
-    # acc = acc_sep_scorer(y_test, scores)
-    # f1 = f1_sep_scorer(y_test, scores)
-    # print("Accuracy for concepts:", acc)
-    # print("F1 for concepts:", f1)
+    model = BottleNeck(1, 20, 256, 1e-3, 'cuda')
+    model.fit(X_train, y_train[:, 0], y_train[:, 1:])
+    scores = model.predict(X_test)
+    acc = acc_sep_scorer(y_test, scores)
+    f1 = f1_sep_scorer(y_test, scores)
+    print("Accuracy for concepts:", acc)
+    print("F1 for concepts:", f1)
     
 def rule_exp():
     y_train_fixed = y_train.copy()
@@ -173,17 +171,17 @@ def get_rule_checker(model, rules) -> RuleChecker:
 def wrong_concepts():
     y_train_fixed = y_train.copy()
     wrong_part_list = [0.1, 0.25, 0.5, 0.75, 0.9]
-    # wrong_part_list = [0.1, 0.25]
+    # wrong_part_list = [0.1, 0.5]
     f1_all = np.empty((len(wrong_part_list), 2)) # without and with rule
     acc_all = np.empty((len(wrong_part_list), 2))
-    roc_auc_all = np.empty((len(wrong_part_list), 2))
-    av_prec_all = np.empty((len(wrong_part_list), 2))
+    # roc_auc_all = np.empty((len(wrong_part_list), 2))
+    # av_prec_all = np.empty((len(wrong_part_list), 2))
     error_all = np.empty((len(wrong_part_list), 2))
+    idx_to_spoil = np.argwhere(np.logical_and(y_train[:, 1] == 1, y_train[:, 2] == 1)).ravel()
     for i, w_p in enumerate(wrong_part_list):
-        wrong_idx = np.argwhere(np.logical_and(y_train[:, 1] == 1, y_train[:, 2] == 1)).ravel()
-        wrong_idx, _ = train_test_split(wrong_idx, train_size=w_p)
+        wrong_idx, _ = train_test_split(idx_to_spoil, train_size=w_p)
         y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
-        no_patcher = lambda x: x
+        no_patcher = lambda x: x[:, None, ...]
         clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
         model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
         model.fit(X_train, y_train_fixed)
@@ -194,14 +192,14 @@ def wrong_concepts():
         print("Accuracy for concepts:", acc)
         print("F1 for concepts:", f1)
         probas = model.predict_proba(X_test)
-        roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
-        print("ROC-AUC for target:", roc_auc)
-        ap = average_precision_score(y_test[:, 0], probas[:, 1])
-        print("AP for target:", ap)
+        # roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+        # print("ROC-AUC for target:", roc_auc)
+        # ap = average_precision_score(y_test[:, 0], probas[:, 1])
+        # print("AP for target:", ap)
         acc_all[i, 0] = acc[0]
         f1_all[i, 0] = f1[0]
-        roc_auc_all[i, 0] = roc_auc
-        av_prec_all[i, 0] = ap
+        # roc_auc_all[i, 0] = roc_auc
+        # av_prec_all[i, 0] = ap
         
         
         x_2_1, x_1_1, x_0_1, x_1_1 = sp.symbols('x_2_1, x_1_1, x_0_1, x_1_1')
@@ -222,10 +220,10 @@ def wrong_concepts():
         print("Accuracy for concepts:", acc)
         print("F1 for concepts:", f1)
         probas = rule_model.predict_proba(X_test)
-        roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
-        print("ROC-AUC for target:", roc_auc)
-        ap = average_precision_score(y_test[:, 0], probas[:, 1])
-        print("AP for target:", ap)
+        # roc_auc = roc_auc_score(y_test[:, 0], probas[:, 1])
+        # print("ROC-AUC for target:", roc_auc)
+        # ap = average_precision_score(y_test[:, 0], probas[:, 1])
+        # print("AP for target:", ap)
         errors_n = check_rule_errors(scores, rule_in)
         print(f'Rule errors (labels): {errors_n / scores.shape[0]}')
         errors_n = checker.check(probas)
@@ -233,17 +231,20 @@ def wrong_concepts():
         print(f'Rule errors (probas): {error_all[i, 1]}')
         acc_all[i, 1] = acc[0]
         f1_all[i, 1] = f1[0]
-        roc_auc_all[i, 1] = roc_auc
-        av_prec_all[i, 1] = ap
-    arrays = [acc_all, f1_all, roc_auc_all, av_prec_all, error_all]
-    names = ['Accuracy', 'F1', 'ROC-AUC', 'Average precision', 'Rule violation rate']
+        # roc_auc_all[i, 1] = roc_auc
+        # av_prec_all[i, 1] = ap
+    arrays = [acc_all, f1_all, error_all]
+    names = ['Accuracy', 'F1', 'Rule violation rate']
+    wrong_part_fig = np.asarray(wrong_part_list) * idx_to_spoil.shape[0] / y_train.shape[0]
     for name, metric in zip(names, arrays):
         fig, ax = plt.subplots(1, 1)
         fig.suptitle(name)
-        ax.plot(wrong_part_list, metric[:, 0], 'gs--', label='Baseline')
-        ax.plot(wrong_part_list, metric[:, 1], 'rs--', label='Applied the rule')
+        ax.plot(wrong_part_fig, metric[:, 0], 'r', label='Baseline', marker='^', markerfacecolor='white', markersize=8)
+        ax.plot(wrong_part_fig, metric[:, 1], 'b', label='Applied the rule', marker='o', markerfacecolor='white', markersize=8)
         ax.grid()
         ax.legend()
+        ax.set_xlabel('Part of the mismatched labels')
+        ax.set_ylabel(name)
     plt.show()
     
 def tiny_sample_exp():
@@ -251,8 +252,8 @@ def tiny_sample_exp():
     global y_train
     y_train, c_train = y_train[:, 0], y_train[:, 1:]
     n_list = [1000, 2000, 3000, 4000, 5000]
-    epochs_n = [200, 150, 70, 50, 50]
-    iter_num = 10
+    epochs_n = [120, 100, 80, 60, 60]
+    iter_num = 100
     f1_our = np.zeros((iter_num, len(n_list), 4))
     f1_bottleneck = np.zeros((iter_num, len(n_list), 4))
     acc_our = np.zeros((iter_num, len(n_list), 4))
@@ -291,8 +292,8 @@ def tiny_sample_exp():
     f1_bottleneck = np.mean(f1_bottleneck, axis=0)
     for i in range(4):
         ax = axes[i]
-        ax.plot(n_list, f1_our[:, i], 'rs--', label='Our model')
-        ax.plot(n_list, f1_bottleneck[:, i], 'gs--', label='Bottleneck')
+        ax.plot(n_list, f1_our[:, i], 'rs--', label='FI-CBL')
+        ax.plot(n_list, f1_bottleneck[:, i], 'gs--', label='CBM')
         ax.grid()
         ax.legend()
         ax.set_xlabel('train sample size')
@@ -306,8 +307,8 @@ def tiny_sample_exp():
     fig.suptitle('Accuracy')
     for i in range(4):
         ax = axes[i]
-        ax.plot(n_list, acc_our[:, i], 'rs--', label='Our model')
-        ax.plot(n_list, acc_bottleneck[:, i], 'gs--', label='Bottleneck')
+        ax.plot(n_list, acc_our[:, i], 'r', label='FI-CBL', marker='^', markerfacecolor='white')
+        ax.plot(n_list, acc_bottleneck[:, i], 'b', label='CBM', marker='o', markerfacecolor='white')
         ax.grid()
         ax.legend()
         ax.set_xlabel('train sample size')
@@ -318,38 +319,38 @@ def tiny_sample_exp():
     
 def draw_figures():
     n_list = [1000, 2000, 3000, 4000, 5000]
-    arrays = np.load('mnist_metrics1.npz')
+    arrays = np.load('mnist_metrics4.npz')
     acc_our, f1_our, acc_bottleneck, f1_bottleneck = arrays['acc_our'], arrays['f1_our'], arrays['acc_btl'], arrays['f1_btl']
-    fig, axes = plt.subplots(2, 4, figsize=(30, 6), sharex='all', sharey='all')
+    fig, axes = plt.subplots(2, 2, figsize=(8, 8), sharex='all', sharey='all')
     f1_our = np.mean(f1_our, axis=0)
     f1_bottleneck = np.mean(f1_bottleneck, axis=0)
     for i in range(4):
-        ax = axes[0, i]
-        ax.plot(n_list, f1_our[:, i], 'rs--', label='Our model')
-        ax.plot(n_list, f1_bottleneck[:, i], 'gs--', label='Bottleneck')
+        ax = axes[i // 2, i % 2]
+        ax.plot(n_list, f1_our[:, i], 'r', label='FI-CBL', marker='^', markerfacecolor='white', markersize=8)
+        ax.plot(n_list, f1_bottleneck[:, i], 'b', label='CBM', marker='o', markerfacecolor='white', markersize=8)
         ax.grid()
         ax.legend()
-        ax.set_xlabel('train sample size')
+        ax.set_xlabel('training set size')
         if i == 0:
             ax.set_ylabel('F1')
         ax.set_title('Concept ' + str(i))
-    acc_our = np.mean(acc_our, axis=0)
-    acc_bottleneck = np.mean(acc_bottleneck, axis=0)
-    for i in range(4):
-        ax = axes[1, i]
-        ax.plot(n_list, acc_our[:, i], 'rs--', label='Our model')
-        ax.plot(n_list, acc_bottleneck[:, i], 'gs--', label='Bottleneck')
-        ax.grid()
-        ax.legend()
-        ax.set_xlabel('train sample size')
-        if i == 0:
-            ax.set_ylabel('Accuracy')
+    # acc_our = np.mean(acc_our, axis=0)
+    # acc_bottleneck = np.mean(acc_bottleneck, axis=0)
+    # for i in range(4):
+    #     ax = axes[1, i]
+    #     ax.plot(n_list, acc_our[:, i], 'r', label='FI-CBL', marker='^', markerfacecolor='white')
+    #     ax.plot(n_list, acc_bottleneck[:, i], 'b', label='CBM', marker='o', markerfacecolor='white')
+    #     ax.grid()
+    #     ax.legend()
+    #     ax.set_xlabel('train sample size')
+    #     if i == 0:
+    #         ax.set_ylabel('Accuracy')
     plt.tight_layout()
     plt.show()
     
 
 if __name__=='__main__':
-    cls_num = 100
+    cls_num = 128
     eps = 0.001
     ae_kw = {
         'latent_dim': 16, 
@@ -361,7 +362,7 @@ if __name__=='__main__':
     }
     X, y = get_proc_mnist_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
-    # tiny_sample_exp()
+    tiny_sample_exp()
     # wrong_concepts()
     # draw_figures()
-    rule_exp()
+    # rule_exp()
