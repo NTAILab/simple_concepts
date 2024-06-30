@@ -3,11 +3,11 @@ from torchvision.transforms.v2 import PILToTensor
 from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
-from simple_concepts.model import SimpleConcepts
+from fi_cbl.model import FICBL
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score
 from typing import Tuple, List
-from experiment_models import Autoencoder, BottleNeck, vert_patcher, EasyClustering
+from experiment_models import Autoencoder, BottleNeck, vert_patcher, AutoEncClustering
 from utility import f1_sep_scorer, acc_sep_scorer
 import sympy as sp
 from sympy.logic.boolalg import Equivalent
@@ -49,8 +49,8 @@ def get_proc_mnist_np() -> Tuple[np.ndarray, np.ndarray]:
 
 def base_experiment():
     no_patcher = lambda x: x[:, None, ...]
-    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-    model = SimpleConcepts(cls_num, clusterizer, vert_patcher, eps)
+    clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+    model = FICBL(cls_num, clusterizer, vert_patcher, eps)
     model.fit(X_train, y_train)
     scores = model.predict(X_test)
     acc = acc_sep_scorer(y_test, scores)
@@ -74,8 +74,8 @@ def rule_exp():
     wrong_idx, _ = train_test_split(wrong_idx, train_size=0.5)
     y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
     no_patcher = lambda x: x[:, None, ...]
-    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-    model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+    clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+    model = FICBL(cls_num, clusterizer, no_patcher, eps)
     model.fit(X_train, y_train_fixed)
     
     scores = model.predict(X_test)
@@ -182,8 +182,8 @@ def wrong_concepts():
         wrong_idx, _ = train_test_split(idx_to_spoil, train_size=w_p)
         y_train_fixed[wrong_idx, 0] = np.logical_not(y_train[wrong_idx, 0])
         no_patcher = lambda x: x[:, None, ...]
-        clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-        model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+        clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+        model = FICBL(cls_num, clusterizer, no_patcher, eps)
         model.fit(X_train, y_train_fixed)
         
         scores = model.predict(X_test)
@@ -263,8 +263,8 @@ def tiny_sample_exp():
             ep_n = epochs_n[j]
             ae_kw['epochs_num'] = ep_n
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
-            clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model = SimpleConcepts(cls_num, clusterizer, no_patcher, eps)
+            clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+            model = FICBL(cls_num, clusterizer, no_patcher, eps)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)

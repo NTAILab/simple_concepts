@@ -5,7 +5,7 @@ from scipy.special import softmax, log_softmax
 from typing import Optional, List
 import warnings
 
-class SimpleConcepts():
+class FICBL():
     # patcher is mapping (n, ...) -> (n, p, ...)
     def __init__(self, cls_num: int, clustering_model, patcher, epsilon: float = 0.01):
         super().__init__()
@@ -15,7 +15,7 @@ class SimpleConcepts():
         self.eps = np.log(epsilon)
         self.is_fit = False
         
-    def get_model_with_rules(self, rules: List[Expr]) -> 'SimpleConcepts':
+    def get_model_with_rules(self, rules: List[Expr]) -> 'FICBL':
         assert self.is_fit
         master_rule = sp.And(*rules)
         uq, idx = np.unique(self.c, axis=0, return_inverse=True)
@@ -32,7 +32,7 @@ class SimpleConcepts():
         master_mask = uq_mask[idx]
         filtered_cls_lbl = self.cls_labels[master_mask]
         filtered_c = self.c[master_mask]
-        new_model = SimpleConcepts(self.cls_num, self.cls_model, self.patcher, 1)
+        new_model = FICBL(self.cls_num, self.cls_model, self.patcher, 1)
         new_model.eps = self.eps
         new_model._count_statistics(filtered_c, filtered_cls_lbl)
         new_model.c = filtered_c
@@ -239,7 +239,7 @@ if __name__=='__main__':
             
     patch_lambda = lambda X: np.reshape(X, (-1, 4, 1))
     cls_model = TestClusterizer()
-    concept_model = SimpleConcepts(3, cls_model, patch_lambda, 0.01).fit(x_train, y_train, c_train)
+    concept_model = FICBL(3, cls_model, patch_lambda, 0.01).fit(x_train, y_train, c_train)
     test_predict = concept_model.predict_proba(x_test)
     print('Test concepts:', test_predict)
     c0_l, c_all_p = concept_model.predict_tgt_lbl_conc_proba(x_test)

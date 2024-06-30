@@ -3,12 +3,12 @@ from torchvision.transforms.v2 import PILToTensor
 from torch.utils.data import DataLoader
 from torch import concat
 import numpy as np
-from simple_concepts.model import SimpleConcepts
+from fi_cbl.model import FICBL
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score
 from typing import Tuple
-from experiment_models import Autoencoder, BottleNeck, EasyClustering, window_patcher
+from experiment_models import Autoencoder, BottleNeck, AutoEncClustering, window_patcher
 from utility import f1_sep_scorer, acc_sep_scorer
 from time import gmtime, strftime
 from functools import partial
@@ -81,8 +81,8 @@ def tiny_sample_exp():
             # del c_train
             encoder = OrdinalEncoder(dtype=int)
             y_small_train = encoder.fit_transform(y_small_train[:, None]).ravel()
-            clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model_sc = SimpleConcepts(cls_num, clusterizer, patcher, eps)
+            clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+            model_sc = FICBL(cls_num, clusterizer, patcher, eps)
             model_sc.fit(X_small_train, y_small_train, c_small_train)
             
             print('--- Bottleneck ---')

@@ -6,9 +6,9 @@ from typing import Tuple
 import sympy as sp
 import numba
 from utility import f1_sep_scorer, acc_sep_scorer
-from experiment_models import Autoencoder, BottleNeck, quarter_patcher, EasyClustering
+from experiment_models import Autoencoder, BottleNeck, quarter_patcher, AutoEncClustering
 from sklearn.model_selection import train_test_split
-from simple_concepts.model import SimpleConcepts
+from fi_cbl.model import FICBL
 import matplotlib.pyplot as plt
 from matplotlib.transforms import Bbox
 
@@ -52,8 +52,8 @@ def get_4mnist_ds(X, y, samples_num: int):
     return result_X, result_Y, result_C
 
 def one_shot_exp():
-    clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-    model = SimpleConcepts(cls_num, clusterizer, quarter_patcher, eps)
+    clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+    model = FICBL(cls_num, clusterizer, quarter_patcher, eps)
     model.fit(X_train, y_train, c_train)
     scores = model.predict(X_test)
     acc = acc_sep_scorer(y_test, scores)
@@ -86,8 +86,8 @@ def wrong_concepts():
         wrong_idx, _ = train_test_split(idx_to_spoil, train_size=w_p)
         y_train_fixed = y_train_all.copy()
         y_train_fixed[wrong_idx, 0] = np.random.randint(0, max_val, len(wrong_idx))
-        clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-        model = SimpleConcepts(cls_num, clusterizer, quarter_patcher, eps)
+        clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+        model = FICBL(cls_num, clusterizer, quarter_patcher, eps)
         model.fit(X_train, y_train_fixed)
         
         scores = model.predict(X_test)
@@ -151,8 +151,8 @@ def tiny_sample_exp():
             ep_n = epochs_n[j]
             ae_kw['epochs_num'] = ep_n
             X_small_train, _, y_small_train, _, c_small_train, _ = train_test_split(X_train, y_train, c_train, train_size=n)
-            clusterizer = EasyClustering(cls_num, Autoencoder(**ae_kw))
-            model = SimpleConcepts(cls_num, clusterizer, quarter_patcher, eps)
+            clusterizer = AutoEncClustering(cls_num, Autoencoder(**ae_kw))
+            model = FICBL(cls_num, clusterizer, quarter_patcher, eps)
             model.fit(X_small_train, y_small_train, c_small_train)
             scores = model.predict(X_test)
             acc = acc_sep_scorer(y_test, scores)
