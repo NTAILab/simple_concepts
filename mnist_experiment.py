@@ -170,8 +170,8 @@ def get_rule_checker(model, rules) -> RuleChecker:
 
 def wrong_concepts():
     y_train_fixed = y_train.copy()
-    wrong_part_list = [0.1, 0.25, 0.5, 0.75, 0.9]
-    # wrong_part_list = [0.1, 0.5]
+    # wrong_part_list = [0.1, 0.25, 0.5, 0.75, 0.9]
+    wrong_part_list = [0.1, 0.5]
     f1_all = np.empty((len(wrong_part_list), 2)) # without and with rule
     acc_all = np.empty((len(wrong_part_list), 2))
     # roc_auc_all = np.empty((len(wrong_part_list), 2))
@@ -362,7 +362,7 @@ if __name__=='__main__':
     }
     X, y = get_proc_mnist_np()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
-    tiny_sample_exp()
-    # wrong_concepts()
+    # tiny_sample_exp()
+    wrong_concepts()
     # draw_figures()
     # rule_exp()
